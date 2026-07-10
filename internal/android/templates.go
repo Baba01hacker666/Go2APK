@@ -42,3 +42,33 @@ android {
 }
 `, cfg.Package, cfg.TargetSDK, cfg.Package, cfg.MinSDK, cfg.TargetSDK, cfg.Version)
 }
+
+// RenderStyles creates the default Android theme resource.
+func RenderStyles() string {
+	return `<resources>
+    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar" />
+</resources>
+`
+}
+
+// RenderMainActivity creates a tiny native Android entry point for generated apps.
+func RenderMainActivity(cfg config.Config) string {
+	return fmt.Sprintf(`package %s;
+
+import android.app.Activity;
+import android.os.Bundle;
+import android.widget.TextView;
+
+public class MainActivity extends Activity {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        TextView view = new TextView(this);
+        view.setText("Hello from %s");
+        view.setTextSize(24);
+        view.setPadding(32, 32, 32, 32);
+        setContentView(view);
+    }
+}
+`, cfg.Package, cfg.Name)
+}
