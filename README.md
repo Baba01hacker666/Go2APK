@@ -1,6 +1,6 @@
 # Go2APK
 
-Go2APK is an early-stage CLI for turning Go applications into Android project scaffolding and, over time, installable APK/AAB release artifacts.
+Go2APK is a CLI for turning Go mobile applications into Android APKs, while still generating Android project scaffolding for environments that use Gradle directly.
 
 ## Install and run
 
@@ -17,15 +17,27 @@ go2apk release
 
 ```bash
 go run ./cmd/go2apk init           # write config, Android templates, scripts, and workflows
-go run ./cmd/go2apk build          # validate and run assembleDebug when Gradle/SDK are available
-go run ./cmd/go2apk release        # validate and run assembleRelease + bundleRelease when available
+go run ./cmd/go2apk build          # build a debug APK with gomobile, or fall back to Gradle
+go run ./cmd/go2apk release        # build a release APK with gomobile, or fall back to Gradle
 go run ./cmd/go2apk clean          # remove dist artifacts
 go run ./cmd/go2apk doctor         # check Go, Java, Gradle, SDK, sdkmanager, and adb
 go run ./cmd/go2apk sdk install    # create Android SDK installer scripts and local SDK directory
 go run ./cmd/go2apk workflow init  # regenerate GitHub Actions workflows
 ```
 
-`init` writes a starter `go2apk.yaml`, Android Gradle project under `android/`, a minimal `MainActivity`, default theme resources, SDK installer scripts, and CI/release workflows. `build` and `release` run Gradle tasks when Android SDK tooling is present and always prepare `dist/debug` or `dist/release` so CI can upload useful diagnostics when a local environment is incomplete.
+`init` writes a starter `go2apk.yaml`, Android Gradle project under `android/`, a minimal `MainActivity`, default theme resources, SDK installer scripts, and CI/release workflows. `build` and `release` first invoke `gomobile build -target=android` for the Go package configured by `source` and write APKs to `dist/debug` or `dist/release`. If gomobile is not installed, the commands fall back to the generated Gradle project and still prepare diagnostics when the local environment is incomplete.
+
+## Building real Go apps
+
+Set `source` in `go2apk.yaml` to the Go package you want to compile, then install gomobile once:
+
+```bash
+go install golang.org/x/mobile/cmd/gomobile@latest
+gomobile init
+go2apk build
+```
+
+Debug APKs are copied to `dist/debug`; release APKs are copied to `dist/release`.
 
 ## Android SDK setup
 
