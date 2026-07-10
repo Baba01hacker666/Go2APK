@@ -25,7 +25,7 @@ go run ./cmd/go2apk sdk install    # create Android SDK installer scripts and lo
 go run ./cmd/go2apk workflow init  # regenerate GitHub Actions workflows
 ```
 
-`init` writes a starter `go2apk.yaml`, Android Gradle project under `android/`, a minimal `MainActivity`, default theme resources, SDK installer scripts, and CI/release workflows. `build` and `release` first invoke `gomobile build -target=android` for the Go package configured by `source` and write APKs to `dist/debug` or `dist/release`. If gomobile is not installed, the commands fall back to the generated Gradle project and still prepare diagnostics when the local environment is incomplete.
+`init` writes a starter `go2apk.yaml`, Android Gradle project under `android/`, default theme resources, SDK installer scripts, and CI/release workflows. `build` and `release` first invoke `gomobile build -target=android` for the Go package configured by `source` (the included Go-only demo defaults to `./examples/demo`) and write APKs to `dist/debug` or `dist/release`. If gomobile is not installed, the commands fall back to the generated Gradle project and still prepare diagnostics when the local environment is incomplete.
 
 ## Building real Go apps
 

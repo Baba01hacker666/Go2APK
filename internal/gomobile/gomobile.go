@@ -40,14 +40,21 @@ func BuildAPK(opts Options) (string, error) {
 	apkName := safeArtifactName(opts.Config.Name, buildKind(opts.Release)+".apk")
 	apkPath := filepath.Join(outDir, apkName)
 
+	buildDir := opts.Root
+	buildSource := opts.Config.Source
+	if sourceDir, ok := sourceModuleDir(opts.Root, opts.Config.Source); ok {
+		buildDir = sourceDir
+		buildSource = "."
+	}
+
 	args := []string{"build", "-target=android", "-androidapi", fmt.Sprint(opts.Config.MinSDK), "-o", apkPath}
 	if opts.Release {
 		args = append(args, "-ldflags=-s -w")
 	}
-	args = append(args, opts.Config.Source)
+	args = append(args, buildSource)
 
 	cmd := exec.Command(gomobile, args...)
-	cmd.Dir = opts.Root
+	cmd.Dir = buildDir
 	cmd.Stdout = opts.Stdout
 	cmd.Stderr = opts.Stderr
 	if cmd.Stdout == nil {
@@ -90,4 +97,17 @@ func safeArtifactName(name, suffix string) string {
 		cleaned = "app"
 	}
 	return cleaned + "-" + suffix
+}
+
+func sourceModuleDir(root, source string) (string, bool) {
+	if source == "" || source == "." {
+		return "", false
+	}
+	if strings.HasPrefix(source, "./") || strings.HasPrefix(source, "../") {
+		dir := filepath.Clean(filepath.Join(root, source))
+		if info, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil && !info.IsDir() {
+			return dir, true
+		}
+	}
+	return "", false
 }
