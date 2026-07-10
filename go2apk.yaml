@@ -1,0 +1,7 @@
+name: Go2APKApp
+package: com.example.go2apkapp
+version: 0.1.0
+min_sdk: 23
+target_sdk: 35
+orientation: unspecified
+theme: @style/AppTheme

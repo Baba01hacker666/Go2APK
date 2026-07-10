@@ -1,0 +1,7 @@
+# Build outputs
+dist/
+go2apk
+
+# OS/editor files
+.DS_Store
+*.swp
