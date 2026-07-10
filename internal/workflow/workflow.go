@@ -65,8 +65,9 @@ jobs:
         run: |
           go install golang.org/x/mobile/cmd/gomobile@latest
           gomobile init
-      - name: Resolve demo mobile dependency
-        run: go get golang.org/x/mobile@latest
+      - name: Resolve demo mobile module
+        run: go mod tidy
+        working-directory: examples/demo
       - name: Build demo debug APK
         run: go run ./cmd/go2apk build
       - name: Verify demo APK exists
@@ -107,8 +108,9 @@ jobs:
         run: |
           go install golang.org/x/mobile/cmd/gomobile@latest
           gomobile init
-      - name: Resolve demo mobile dependency
-        run: go get golang.org/x/mobile@latest
+      - name: Resolve demo mobile module
+        run: go mod tidy
+        working-directory: examples/demo
       - name: Build release artifacts
         run: go run ./cmd/go2apk release
       - name: Verify release APK exists
