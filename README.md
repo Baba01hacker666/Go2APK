@@ -29,7 +29,7 @@ go run ./cmd/go2apk workflow init  # regenerate GitHub Actions workflows
 
 ## Building real Go apps
 
-Set `source` in `go2apk.yaml` to the Go package you want to compile, then install gomobile once:
+This repository includes a demo app at `examples/demo`, and the checked-in `go2apk.yaml` points `source` at that package. Set `source` to a different Go package when building your own app, then install gomobile once:
 
 ```bash
 go install golang.org/x/mobile/cmd/gomobile@latest
@@ -37,7 +37,7 @@ gomobile init
 go2apk build
 ```
 
-Debug APKs are copied to `dist/debug`; release APKs are copied to `dist/release`.
+Debug APKs are copied to `dist/debug`; release APKs are copied to `dist/release`. The generated GitHub Actions workflow installs Android SDK packages plus gomobile, builds the demo APK, verifies that an APK exists, and uploads it as a workflow artifact named `go2apk-demo-debug-apk`.
 
 ## Android SDK setup
 
