@@ -5,3 +5,4 @@ min_sdk: 23
 target_sdk: 35
 orientation: unspecified
 theme: @style/AppTheme
+source: ./examples/demo
