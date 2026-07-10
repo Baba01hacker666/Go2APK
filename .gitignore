@@ -1,6 +1,7 @@
 # Build outputs
 dist/
-go2apk
+android/.gradle/
+/go2apk
 
 # OS/editor files
 .DS_Store
