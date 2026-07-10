@@ -30,7 +30,7 @@ func Default() Config {
 		TargetSDK:   35,
 		Orientation: "unspecified",
 		Theme:       "@style/AppTheme",
-		Source:      ".",
+		Source:      "./examples/demo",
 	}
 }
 

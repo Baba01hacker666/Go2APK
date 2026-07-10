@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/go2apk/go2apk/internal/android"
 	"github.com/go2apk/go2apk/internal/config"
@@ -26,15 +25,14 @@ include ':app'
     id 'com.android.application' version '8.5.2' apply false
 }
 `,
-		"android/app/build.gradle":                                                        android.RenderBuildGradle(cfg),
-		"android/app/src/main/AndroidManifest.xml":                                        android.RenderManifest(cfg),
-		"android/app/src/main/assets/.keep":                                               "",
-		"android/app/src/main/res/values/styles.xml":                                      android.RenderStyles(),
-		filepath.Join("android/app/src/main/java", packagePath(cfg), "MainActivity.java"): android.RenderMainActivity(cfg),
-		"scripts/install-sdk.sh":                                                          sdk.InstallScript(),
-		"scripts/install-sdk.ps1":                                                         sdk.InstallPowerShell(),
-		".github/workflows/ci.yml":                                                        workflow.CIYAML,
-		".github/workflows/release.yml":                                                   workflow.ReleaseYAML,
+		"android/app/build.gradle":                   android.RenderBuildGradle(cfg),
+		"android/app/src/main/AndroidManifest.xml":   android.RenderManifest(cfg),
+		"android/app/src/main/assets/.keep":          "",
+		"android/app/src/main/res/values/styles.xml": android.RenderStyles(),
+		"scripts/install-sdk.sh":                     sdk.InstallScript(),
+		"scripts/install-sdk.ps1":                    sdk.InstallPowerShell(),
+		".github/workflows/ci.yml":                   workflow.CIYAML,
+		".github/workflows/release.yml":              workflow.ReleaseYAML,
 	}
 
 	for name, contents := range files {
@@ -59,8 +57,4 @@ include ':app'
 
 func renderConfig(cfg config.Config) string {
 	return fmt.Sprintf("name: %s\npackage: %s\nversion: %s\nmin_sdk: %d\ntarget_sdk: %d\norientation: %s\ntheme: %s\nsource: %s\n", cfg.Name, cfg.Package, cfg.Version, cfg.MinSDK, cfg.TargetSDK, cfg.Orientation, cfg.Theme, cfg.Source)
-}
-
-func packagePath(cfg config.Config) string {
-	return strings.ReplaceAll(cfg.Package, ".", string(filepath.Separator))
 }
