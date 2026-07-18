@@ -18,6 +18,7 @@ type Config struct {
 	Orientation string
 	Theme       string
 	Source      string
+	Obfuscate   bool
 }
 
 // Default returns beginner-friendly Android application defaults.
@@ -31,6 +32,7 @@ func Default() Config {
 		Orientation: "unspecified",
 		Theme:       "@style/AppTheme",
 		Source:      "./examples/demo",
+		Obfuscate:   false,
 	}
 }
 
@@ -73,6 +75,8 @@ func Load(path string) (Config, error) {
 			cfg.Theme = value
 		case "source":
 			cfg.Source = value
+		case "obfuscate":
+			cfg.Obfuscate, err = atob(key, value)
 		}
 		if err != nil {
 			return cfg, err
@@ -87,4 +91,12 @@ func atoi(key, value string) (int, error) {
 		return 0, fmt.Errorf("invalid %s value %q: %w", key, value, err)
 	}
 	return n, nil
+}
+
+func atob(key, value string) (bool, error) {
+	b, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("invalid %s value %q: %w", key, value, err)
+	}
+	return b, nil
 }
