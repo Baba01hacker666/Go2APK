@@ -26,6 +26,7 @@ include ':app'
 }
 `,
 		"android/app/build.gradle":                   android.RenderBuildGradle(cfg),
+		"android/app/proguard-rules.pro":             android.RenderProguardRules(),
 		"android/app/src/main/AndroidManifest.xml":   android.RenderManifest(cfg),
 		"android/app/src/main/assets/.keep":          "",
 		"android/app/src/main/res/values/styles.xml": android.RenderStyles(),
@@ -56,5 +57,5 @@ include ':app'
 }
 
 func renderConfig(cfg config.Config) string {
-	return fmt.Sprintf("name: %s\npackage: %s\nversion: %s\nmin_sdk: %d\ntarget_sdk: %d\norientation: %s\ntheme: %s\nsource: %s\n", cfg.Name, cfg.Package, cfg.Version, cfg.MinSDK, cfg.TargetSDK, cfg.Orientation, cfg.Theme, cfg.Source)
+	return fmt.Sprintf("name: %s\npackage: %s\nversion: %s\nmin_sdk: %d\ntarget_sdk: %d\norientation: %s\ntheme: %s\nsource: %s\nobfuscate: %t\n", cfg.Name, cfg.Package, cfg.Version, cfg.MinSDK, cfg.TargetSDK, cfg.Orientation, cfg.Theme, cfg.Source, cfg.Obfuscate)
 }
