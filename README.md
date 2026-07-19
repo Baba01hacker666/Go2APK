@@ -19,6 +19,7 @@ go2apk release
 go run ./cmd/go2apk init           # write config, Android templates, scripts, and workflows
 go run ./cmd/go2apk build          # build a debug APK with gomobile, or fall back to Gradle
 go run ./cmd/go2apk release        # build a release APK with gomobile, or fall back to Gradle
+go run ./cmd/go2apk release --obfuscate # enable release obfuscation for the Gradle fallback
 go run ./cmd/go2apk clean          # remove dist artifacts
 go run ./cmd/go2apk doctor         # check Go, Java, Gradle, SDK, sdkmanager, and adb
 go run ./cmd/go2apk sdk install    # create Android SDK installer scripts and local SDK directory
@@ -38,6 +39,10 @@ go2apk build
 ```
 
 Debug APKs are copied to `dist/debug`; release APKs are copied to `dist/release`. The generated GitHub Actions workflow installs Android SDK packages plus gomobile, builds the demo APK, verifies that an APK exists, and uploads it as a workflow artifact named `go2apk-demo-debug-apk`.
+
+## Obfuscation
+
+Set `obfuscate: true` in `go2apk.yaml`, or pass `--obfuscate` to `go2apk build`/`go2apk release`, to enable Android release obfuscation in the generated Gradle project. This turns on R8 minification and resource shrinking for the release build type and uses `android/app/proguard-rules.pro` for app-specific keep rules. Gomobile release builds continue to strip Go symbol/debug data with `-ldflags=-s -w`.
 
 ## Android SDK setup
 

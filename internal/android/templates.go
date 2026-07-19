@@ -43,10 +43,15 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging true
+    buildTypes {
+        release {
+            minifyEnabled %t
+            shrinkResources %t
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }
-`, cfg.Package, cfg.TargetSDK, cfg.Package, cfg.MinSDK, cfg.TargetSDK, cfg.Version)
+`, cfg.Package, cfg.TargetSDK, cfg.Package, cfg.MinSDK, cfg.TargetSDK, cfg.Version, cfg.Obfuscate, cfg.Obfuscate)
 }
 
 // RenderStyles creates the default Android theme resource.
@@ -54,5 +59,11 @@ func RenderStyles() string {
 	return `<resources>
     <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar" />
 </resources>
+`
+}
+
+// RenderProguardRules creates a conservative app-specific rules file for R8.
+func RenderProguardRules() string {
+	return `# Add app-specific keep rules here when reflection or JNI entry points require them.
 `
 }

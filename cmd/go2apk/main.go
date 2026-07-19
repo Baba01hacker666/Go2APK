@@ -33,9 +33,9 @@ func run(args []string) error {
 	case "init":
 		return project.Init(root)
 	case "build":
-		return builder.Build(root)
+		return builder.Build(root, buildOptions(args[1:]))
 	case "release":
-		return builder.Release(root)
+		return builder.Release(root, buildOptions(args[1:]))
 	case "clean":
 		return builder.Clean(root)
 	case "doctor":
@@ -55,13 +55,25 @@ func run(args []string) error {
 	}
 }
 
+func buildOptions(args []string) builder.Options {
+	var opts builder.Options
+	for _, arg := range args {
+		if arg == "--obfuscate" {
+			opts.Obfuscate = true
+		}
+	}
+	return opts
+}
+
 func usage() {
 	fmt.Println(`Go2APK converts Go projects into Android APK scaffolding.
 
 Usage:
   go2apk init           Generate go2apk.yaml, Android templates, and helper scripts
-  go2apk build          Validate inputs and run a debug Gradle build when available
-  go2apk release        Validate inputs and run a release Gradle build when available
+  go2apk build [--obfuscate]
+                         Validate inputs and run a debug Gradle build when available
+  go2apk release [--obfuscate]
+                         Validate inputs and run an obfuscated release Gradle build when requested
   go2apk sdk install    Install Android command-line SDK tools into .go2apk/android-sdk
   go2apk workflow init  Generate GitHub Actions workflows
   go2apk doctor         Check Go, Java, Gradle, and Android SDK tooling

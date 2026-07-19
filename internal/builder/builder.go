@@ -6,17 +6,24 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/go2apk/go2apk/internal/android"
 	"github.com/go2apk/go2apk/internal/config"
 	"github.com/go2apk/go2apk/internal/gomobile"
 	"github.com/go2apk/go2apk/internal/gradle"
 )
 
+// Options controls build-time behavior.
+type Options struct {
+	Obfuscate bool
+}
+
 // Build validates the generated project and prepares debug APK outputs.
-func Build(root string) error {
+func Build(root string, opts ...Options) error {
 	cfg, err := loadConfig(root)
 	if err != nil {
 		return err
 	}
+	applyOptions(&cfg, opts)
 	if _, err := gomobile.BuildAPK(gomobile.Options{Root: root, Config: cfg}); err == nil {
 		return nil
 	} else {
@@ -24,6 +31,11 @@ func Build(root string) error {
 	}
 	if err := require(filepath.Join(root, "android", "app", "build.gradle")); err != nil {
 		return err
+	}
+	if cfg.Obfuscate {
+		if err := writeObfuscatedGradle(root, cfg); err != nil {
+			return err
+		}
 	}
 	out := filepath.Join(root, "dist", "debug")
 	if err := os.MkdirAll(out, 0o755); err != nil {
@@ -36,15 +48,21 @@ func Build(root string) error {
 }
 
 // Release prepares release APK/AAB outputs.
-func Release(root string) error {
+func Release(root string, opts ...Options) error {
 	cfg, err := loadConfig(root)
 	if err != nil {
 		return err
 	}
+	applyOptions(&cfg, opts)
 	if _, err := gomobile.BuildAPK(gomobile.Options{Root: root, Config: cfg, Release: true}); err == nil {
 		return nil
 	} else {
 		fmt.Fprintf(os.Stderr, "go2apk: gomobile release unavailable, falling back to Gradle scaffold: %v\n", err)
+	}
+	if cfg.Obfuscate {
+		if err := writeObfuscatedGradle(root, cfg); err != nil {
+			return err
+		}
 	}
 	out := filepath.Join(root, "dist", "release")
 	if err := os.MkdirAll(out, 0o755); err != nil {
@@ -69,6 +87,22 @@ func require(path string) error {
 		return fmt.Errorf("required file %s is missing; run go2apk init first", path)
 	}
 	return nil
+}
+
+func applyOptions(cfg *config.Config, opts []Options) {
+	for _, opt := range opts {
+		if opt.Obfuscate {
+			cfg.Obfuscate = true
+		}
+	}
+}
+
+func writeObfuscatedGradle(root string, cfg config.Config) error {
+	appDir := filepath.Join(root, "android", "app")
+	if err := os.WriteFile(filepath.Join(appDir, "build.gradle"), []byte(android.RenderBuildGradle(cfg)), 0o644); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(appDir, "proguard-rules.pro"), []byte(android.RenderProguardRules()), 0o644)
 }
 
 func runGradle(root string, tasks ...string) error {
