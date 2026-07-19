@@ -24,11 +24,11 @@ type Config struct {
 // Default returns beginner-friendly Android application defaults.
 func Default() Config {
 	return Config{
-		Name:        "Go2APKApp",
+		Name:        "Go2APK Calculator",
 		Package:     "com.example.go2apkapp",
 		Version:     "0.1.0",
 		MinSDK:      23,
-		TargetSDK:   35,
+		TargetSDK:   36,
 		Orientation: "unspecified",
 		Theme:       "@style/AppTheme",
 		Source:      "./examples/demo",

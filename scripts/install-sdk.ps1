@@ -1,8 +1,8 @@
 $ErrorActionPreference = "Stop"
 $SdkRoot = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } elseif ($env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT } else { Join-Path (Get-Location) ".go2apk/android-sdk" }
-$ToolsVersion = if ($env:GO2APK_CMDLINE_TOOLS_VERSION) { $env:GO2APK_CMDLINE_TOOLS_VERSION } else { "11076708" }
-$BuildTools = if ($env:GO2APK_BUILD_TOOLS) { $env:GO2APK_BUILD_TOOLS } else { "35.0.0" }
-$Platform = if ($env:GO2APK_PLATFORM) { $env:GO2APK_PLATFORM } else { "android-35" }
+$ToolsVersion = if ($env:GO2APK_CMDLINE_TOOLS_VERSION) { $env:GO2APK_CMDLINE_TOOLS_VERSION } else { "15859902" }
+$BuildTools = if ($env:GO2APK_BUILD_TOOLS) { $env:GO2APK_BUILD_TOOLS } else { "36.0.0" }
+$Platform = if ($env:GO2APK_PLATFORM) { $env:GO2APK_PLATFORM } else { "android-36" }
 $NdkVersion = if ($env:GO2APK_NDK_VERSION) { $env:GO2APK_NDK_VERSION } else { "27.2.12479018" }
 New-Item -ItemType Directory -Force -Path (Join-Path $SdkRoot "cmdline-tools") | Out-Null
 $Archive = "commandlinetools-win-$($ToolsVersion)_latest.zip"

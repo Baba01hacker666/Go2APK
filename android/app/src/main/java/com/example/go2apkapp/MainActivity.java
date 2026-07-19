@@ -1,84 +1,4 @@
-package android
-
-import (
-	"fmt"
-
-	"github.com/go2apk/go2apk/internal/config"
-)
-
-// RenderManifest creates a minimal Android manifest for generated projects.
-func RenderManifest(cfg config.Config) string {
-	return fmt.Sprintf(`<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET" />
-    <application android:extractNativeLibs="true" android:theme="%s" android:label="%s" android:allowBackup="true" android:supportsRtl="true">
-        <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="%s">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
-</manifest>
-`, cfg.Theme, cfg.Name, cfg.Orientation)
-}
-
-// RenderBuildGradle creates a starter Android application Gradle file.
-func RenderBuildGradle(cfg config.Config) string {
-	return fmt.Sprintf(`plugins {
-    id 'com.android.application'
-}
-
-android {
-    namespace '%s'
-    compileSdk %d
-
-    defaultConfig {
-        applicationId '%s'
-        minSdk %d
-        targetSdk %d
-        versionName '%s'
-        versionCode 1
-    }
-
-    packaging {
-        jniLibs {
-            useLegacyPackaging true
-        }
-    }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-
-    buildTypes {
-        release {
-            minifyEnabled %t
-            shrinkResources %t
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-}
-`, cfg.Package, cfg.TargetSDK, cfg.Package, cfg.MinSDK, cfg.TargetSDK, cfg.Version, cfg.Obfuscate, cfg.Obfuscate)
-}
-
-// RenderStyles creates the default Android theme resource.
-func RenderStyles() string {
-	return `<resources>
-    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar" />
-</resources>
-`
-}
-
-// RenderProguardRules creates a conservative app-specific rules file for R8.
-func RenderProguardRules() string {
-	return `# Add app-specific keep rules here when reflection or JNI entry points require them.
-`
-}
-
-// RenderMainActivity creates a Java calculator Activity for Gradle fallback builds.
-func RenderMainActivity(cfg config.Config) string {
-	return fmt.Sprintf(`package %s;
+package com.example.go2apkapp;
 
 import android.app.Activity;
 import android.graphics.Color;
@@ -101,7 +21,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setTitle("%s");
+        setTitle("Go2APK Calculator");
         setContentView(createCalculatorView());
         refreshDisplay();
     }
@@ -118,18 +38,30 @@ public class MainActivity extends Activity {
         expressionView.setTextColor(Color.rgb(189, 189, 189));
         expressionView.setTextSize(22);
         expressionView.setSingleLine(false);
-        root.addView(expressionView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        root.addView(expressionView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
 
         resultView = new TextView(this);
         resultView.setGravity(Gravity.END);
         resultView.setTextColor(Color.WHITE);
         resultView.setTextSize(42);
         resultView.setSingleLine(false);
-        root.addView(resultView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
+        root.addView(resultView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1));
 
         GridLayout keypad = new GridLayout(this);
         keypad.setColumnCount(4);
-        String[] keys = {"C", "⌫", "%%", "÷", "7", "8", "9", "×", "4", "5", "6", "−", "1", "2", "3", "+", "0", ".", "±", "="};
+        keypad.setRowCount(5);
+        String[] keys = {
+                "C", "⌫", "%", "÷",
+                "7", "8", "9", "×",
+                "4", "5", "6", "−",
+                "1", "2", "3", "+",
+                "0", ".", "±", "="
+        };
         for (String key : keys) {
             Button button = new Button(this);
             button.setText(key);
@@ -148,7 +80,9 @@ public class MainActivity extends Activity {
             params.setMargins(6, 6, 6, 6);
             keypad.addView(button, params);
         }
-        root.addView(keypad, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        root.addView(keypad, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
         return root;
     }
 
@@ -180,16 +114,20 @@ public class MainActivity extends Activity {
                 appendDecimal();
             } else if ("=".equals(key)) {
                 calculate();
-            } else if ("+−×÷%%".contains(key)) {
+            } else if ("+−×÷%".contains(key)) {
                 chooseOperator(key);
             } else {
                 appendDigit(key);
             }
         }
 
-        String display() { return currentInput; }
+        String display() {
+            return currentInput;
+        }
 
-        String expression() { return expression.isEmpty() ? "Calculator" : expression; }
+        String expression() {
+            return expression.isEmpty() ? "Calculator" : expression;
+        }
 
         private void clear() {
             accumulator = null;
@@ -228,9 +166,10 @@ public class MainActivity extends Activity {
         }
 
         private void toggleSign() {
-            if (!"0".equals(currentInput)) {
-                currentInput = currentInput.startsWith("-") ? currentInput.substring(1) : "-" + currentInput;
+            if ("0".equals(currentInput)) {
+                return;
             }
+            currentInput = currentInput.startsWith("-") ? currentInput.substring(1) : "-" + currentInput;
         }
 
         private void chooseOperator(String operator) {
@@ -259,12 +198,23 @@ public class MainActivity extends Activity {
             }
             BigDecimal result;
             switch (pendingOperator) {
-                case "+": result = accumulator.add(right, MATH_CONTEXT); break;
-                case "−": result = accumulator.subtract(right, MATH_CONTEXT); break;
-                case "×": result = accumulator.multiply(right, MATH_CONTEXT); break;
-                case "÷": result = accumulator.divide(right, MATH_CONTEXT); break;
-                case "%%": result = accumulator.remainder(right, MATH_CONTEXT); break;
-                default: result = right;
+                case "+":
+                    result = accumulator.add(right, MATH_CONTEXT);
+                    break;
+                case "−":
+                    result = accumulator.subtract(right, MATH_CONTEXT);
+                    break;
+                case "×":
+                    result = accumulator.multiply(right, MATH_CONTEXT);
+                    break;
+                case "÷":
+                    result = accumulator.divide(right, MATH_CONTEXT);
+                    break;
+                case "%":
+                    result = accumulator.remainder(right, MATH_CONTEXT);
+                    break;
+                default:
+                    result = right;
             }
             expression = format(accumulator) + " " + pendingOperator + " " + format(right) + " =";
             currentInput = format(result);
@@ -284,6 +234,4 @@ public class MainActivity extends Activity {
             return value.stripTrailingZeros().toPlainString();
         }
     }
-}
-`, cfg.Package, cfg.Name)
 }

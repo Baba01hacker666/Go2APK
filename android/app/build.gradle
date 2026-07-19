@@ -4,14 +4,19 @@ plugins {
 
 android {
     namespace 'com.example.go2apkapp'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId 'com.example.go2apkapp'
         minSdk 23
-        targetSdk 35
+        targetSdk 36
         versionName '0.1.0'
         versionCode 1
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     buildTypes {
