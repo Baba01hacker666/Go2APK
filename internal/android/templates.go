@@ -43,6 +43,9 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging true
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled %t
