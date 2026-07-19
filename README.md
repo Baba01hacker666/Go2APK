@@ -46,7 +46,7 @@ Set `obfuscate: true` in `go2apk.yaml`, or pass `--obfuscate` to `go2apk build`/
 
 ## Android SDK setup
 
-The generated SDK scripts install Android command-line tools, platform tools, API 35, build-tools 35.0.0, and NDK 27.2.12479018.
+The generated SDK scripts install Android command-line tools, platform tools, API 36, build-tools 36.0.0, and NDK 27.2.12479018.
 
 ```bash
 ./scripts/install-sdk.sh

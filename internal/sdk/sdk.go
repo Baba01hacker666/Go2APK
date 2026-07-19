@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	defaultCommandLineTools = "11076708"
-	defaultBuildTools       = "35.0.0"
-	defaultPlatform         = "android-35"
+	defaultCommandLineTools = "15859902"
+	defaultBuildTools       = "36.0.0"
+	defaultPlatform         = "android-36"
 	defaultNDK              = "27.2.12479018"
 )
 
