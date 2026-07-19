@@ -48,9 +48,11 @@ func BuildAPK(opts Options) (string, error) {
 	}
 
 	args := []string{"build", "-target=android", "-androidapi", fmt.Sprint(opts.Config.MinSDK), "-o", apkPath}
+	ldflags := "-extldflags=-Wl,-z,max-page-size=16384"
 	if opts.Release {
-		args = append(args, "-ldflags=-s -w")
+		ldflags += " -s -w"
 	}
+	args = append(args, "-ldflags="+ldflags)
 	args = append(args, buildSource)
 
 	cmd := exec.Command(gomobile, args...)

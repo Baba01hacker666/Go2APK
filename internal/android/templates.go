@@ -10,7 +10,7 @@ import (
 func RenderManifest(cfg config.Config) string {
 	return fmt.Sprintf(`<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
-    <application android:theme="%s" android:label="%s" android:allowBackup="true" android:supportsRtl="true">
+    <application android:extractNativeLibs="true" android:theme="%s" android:label="%s" android:allowBackup="true" android:supportsRtl="true">
         <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="%s">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -40,6 +40,9 @@ android {
         versionCode 1
     }
 
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
     buildTypes {
         release {
             minifyEnabled %t
