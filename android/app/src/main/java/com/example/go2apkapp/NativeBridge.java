@@ -44,6 +44,14 @@ final class NativeBridge {
         }
     }
 
+    /** Called from Go to animate a widget on the UI thread. */
+    public static void animate(String id, String property, float to, int durationMs) {
+        if (currentActivity instanceof MainActivity) {
+            currentActivity.runOnUiThread(() ->
+                ((MainActivity) currentActivity).animateWidget(id, property, to, durationMs));
+        }
+    }
+
     /** Called from Go to read the current text of a widget. */
     public static String getText(String id) {
         if (currentActivity instanceof MainActivity) {

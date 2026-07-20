@@ -5,6 +5,7 @@ Go2APK is a toolchain that converts declarative Go UI applications into native A
 ## Documentation
 * [UI Styling and CSS](docs/UI.md)
 * [Android Platform APIs (Intents, Permissions, Broadcasts)](docs/ANDROID.md)
+* [Media and Animations (Images, Video, Audio)](docs/MEDIA_AND_ANIMATIONS.md)
 * [Internal Workings](WORKINGS.md)
 
 ## Install and run

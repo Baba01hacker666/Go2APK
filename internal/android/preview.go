@@ -126,6 +126,18 @@ func renderWidgetHTML(sb *strings.Builder, w ir.Widget) {
 	case ir.TextFieldWidget:
 		inlineCSS := generateInlineCSS(v.Style, v.CSS, "textfield")
 		sb.WriteString(fmt.Sprintf("    <input type=\"text\" class=\"go2apk-textfield\" placeholder=%q style=%q>\n", v.Placeholder, inlineCSS))
+	case ir.ImageWidget:
+		inlineCSS := generateInlineCSS(v.Style, v.CSS, "image")
+		sb.WriteString(fmt.Sprintf("    <img src=%q style=%q>\n", v.Src, inlineCSS))
+	case ir.AudioWidget:
+		autoPlayStr := ""
+		if v.AutoPlay {
+			autoPlayStr = " autoplay"
+		}
+		sb.WriteString(fmt.Sprintf("    <audio src=%q controls%s></audio>\n", v.Src, autoPlayStr))
+	case ir.VideoWidget:
+		inlineCSS := generateInlineCSS(v.Style, v.CSS, "video")
+		sb.WriteString(fmt.Sprintf("    <video src=%q style=%q controls></video>\n", v.Src, inlineCSS))
 	}
 }
 

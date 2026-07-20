@@ -15,6 +15,10 @@ The repository is both the CLI source and a self-contained starter project. The 
 - **Build from scratch:** Completely avoid `gomobile` dependencies and build Android apps directly via Gradle and NDK.
 - **Declarative Go UI:** Users describe their Android application using standard Go code in the `ui` package (e.g., `ui.Button`, `ui.TextView`). The transpiler maps standard inline CSS strings into native Android method calls (like `setBackgroundColor` and `setPadding`) at build time with zero runtime penalty.
 - **Native Android APIs:** Direct support for `android.Permission`, `android.Intent`, and `android.BroadcastReceiver` declarations in Go that inject configuration directly into the generated `AndroidManifest.xml` and JNI bindings.
+- **Media Support:** Native `ImageView`, `VideoView`, and headless `MediaPlayer` audio integration configured from declarative Go properties.
+- **HTML Formatted Text:** Transparent HTML rendering support inside `TextView` and `Button` properties.
+- **UI Animations:** Triggers Android `ObjectAnimator` dynamically from Go via the JNI bridge `android.Animate` function.
+- **Optimization:** Go binaries are stripped via linker flags and Android apps minified using R8 / ProGuard rules for fast startup and minimal size.
 - **Low-friction onboarding:** `go2apk init` writes a complete starter configuration, Android project, helper scripts, and CI workflows.
 - **Reproducible Android setup:** SDK installer scripts pin command-line tools, platform, build-tools, and NDK versions.
 - **Generated project transparency:** Android templates live in Go source so `init`, AST transformations, and obfuscation updates are deterministic.

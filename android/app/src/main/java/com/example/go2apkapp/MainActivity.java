@@ -9,6 +9,15 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.VideoView;
+import android.media.MediaPlayer;
+import android.net.Uri;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import java.net.URL;
+import java.util.concurrent.Executors;
+import android.animation.ObjectAnimator;
 
 public class MainActivity extends Activity {
     private LinearLayout main_layout;
@@ -52,7 +61,7 @@ public class MainActivity extends Activity {
         view1.setBackgroundColor(Color.parseColor("#1E1E2E"));
         this.main_layout = view1;
         TextView view2 = new TextView(this);
-        view2.setText("0");
+        view2.setText(android.text.Html.fromHtml("0", android.text.Html.FROM_HTML_MODE_COMPACT));
         view2.setGravity(Gravity.END);
         LinearLayout.LayoutParams lp_view2 = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT, 0.000000f);
         lp_view2.setMargins(16, 16, 16, 16);
@@ -71,7 +80,7 @@ public class MainActivity extends Activity {
         view3.setLayoutParams(lp_view3);
         view1.addView(view3);
         Button view4 = new Button(this);
-        view4.setText("C");
+        view4.setText(android.text.Html.fromHtml("C", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view4 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view4.setMargins(8, 8, 8, 8);
         view4.setLayoutParams(lp_view4);
@@ -84,7 +93,7 @@ public class MainActivity extends Activity {
         this.btn_clear = view4;
         view3.addView(view4);
         Button view5 = new Button(this);
-        view5.setText("(");
+        view5.setText(android.text.Html.fromHtml("(", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view5 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view5.setMargins(8, 8, 8, 8);
         view5.setLayoutParams(lp_view5);
@@ -97,7 +106,7 @@ public class MainActivity extends Activity {
         this.btn_lp = view5;
         view3.addView(view5);
         Button view6 = new Button(this);
-        view6.setText(")");
+        view6.setText(android.text.Html.fromHtml(")", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view6 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view6.setMargins(8, 8, 8, 8);
         view6.setLayoutParams(lp_view6);
@@ -110,7 +119,7 @@ public class MainActivity extends Activity {
         this.btn_rp = view6;
         view3.addView(view6);
         Button view7 = new Button(this);
-        view7.setText("/");
+        view7.setText(android.text.Html.fromHtml("/", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view7 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view7.setMargins(8, 8, 8, 8);
         view7.setLayoutParams(lp_view7);
@@ -130,7 +139,7 @@ public class MainActivity extends Activity {
         view8.setLayoutParams(lp_view8);
         view1.addView(view8);
         Button view9 = new Button(this);
-        view9.setText("7");
+        view9.setText(android.text.Html.fromHtml("7", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view9 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view9.setMargins(8, 8, 8, 8);
         view9.setLayoutParams(lp_view9);
@@ -143,7 +152,7 @@ public class MainActivity extends Activity {
         this.btn_7 = view9;
         view8.addView(view9);
         Button view10 = new Button(this);
-        view10.setText("8");
+        view10.setText(android.text.Html.fromHtml("8", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view10 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view10.setMargins(8, 8, 8, 8);
         view10.setLayoutParams(lp_view10);
@@ -156,7 +165,7 @@ public class MainActivity extends Activity {
         this.btn_8 = view10;
         view8.addView(view10);
         Button view11 = new Button(this);
-        view11.setText("9");
+        view11.setText(android.text.Html.fromHtml("9", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view11 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view11.setMargins(8, 8, 8, 8);
         view11.setLayoutParams(lp_view11);
@@ -169,7 +178,7 @@ public class MainActivity extends Activity {
         this.btn_9 = view11;
         view8.addView(view11);
         Button view12 = new Button(this);
-        view12.setText("*");
+        view12.setText(android.text.Html.fromHtml("*", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view12 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view12.setMargins(8, 8, 8, 8);
         view12.setLayoutParams(lp_view12);
@@ -189,7 +198,7 @@ public class MainActivity extends Activity {
         view13.setLayoutParams(lp_view13);
         view1.addView(view13);
         Button view14 = new Button(this);
-        view14.setText("4");
+        view14.setText(android.text.Html.fromHtml("4", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view14 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view14.setMargins(8, 8, 8, 8);
         view14.setLayoutParams(lp_view14);
@@ -202,7 +211,7 @@ public class MainActivity extends Activity {
         this.btn_4 = view14;
         view13.addView(view14);
         Button view15 = new Button(this);
-        view15.setText("5");
+        view15.setText(android.text.Html.fromHtml("5", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view15 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view15.setMargins(8, 8, 8, 8);
         view15.setLayoutParams(lp_view15);
@@ -215,7 +224,7 @@ public class MainActivity extends Activity {
         this.btn_5 = view15;
         view13.addView(view15);
         Button view16 = new Button(this);
-        view16.setText("6");
+        view16.setText(android.text.Html.fromHtml("6", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view16 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view16.setMargins(8, 8, 8, 8);
         view16.setLayoutParams(lp_view16);
@@ -228,7 +237,7 @@ public class MainActivity extends Activity {
         this.btn_6 = view16;
         view13.addView(view16);
         Button view17 = new Button(this);
-        view17.setText("-");
+        view17.setText(android.text.Html.fromHtml("-", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view17 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view17.setMargins(8, 8, 8, 8);
         view17.setLayoutParams(lp_view17);
@@ -248,7 +257,7 @@ public class MainActivity extends Activity {
         view18.setLayoutParams(lp_view18);
         view1.addView(view18);
         Button view19 = new Button(this);
-        view19.setText("1");
+        view19.setText(android.text.Html.fromHtml("1", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view19 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view19.setMargins(8, 8, 8, 8);
         view19.setLayoutParams(lp_view19);
@@ -261,7 +270,7 @@ public class MainActivity extends Activity {
         this.btn_1 = view19;
         view18.addView(view19);
         Button view20 = new Button(this);
-        view20.setText("2");
+        view20.setText(android.text.Html.fromHtml("2", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view20 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view20.setMargins(8, 8, 8, 8);
         view20.setLayoutParams(lp_view20);
@@ -274,7 +283,7 @@ public class MainActivity extends Activity {
         this.btn_2 = view20;
         view18.addView(view20);
         Button view21 = new Button(this);
-        view21.setText("3");
+        view21.setText(android.text.Html.fromHtml("3", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view21 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view21.setMargins(8, 8, 8, 8);
         view21.setLayoutParams(lp_view21);
@@ -287,7 +296,7 @@ public class MainActivity extends Activity {
         this.btn_3 = view21;
         view18.addView(view21);
         Button view22 = new Button(this);
-        view22.setText("+");
+        view22.setText(android.text.Html.fromHtml("+", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view22 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view22.setMargins(8, 8, 8, 8);
         view22.setLayoutParams(lp_view22);
@@ -307,7 +316,7 @@ public class MainActivity extends Activity {
         view23.setLayoutParams(lp_view23);
         view1.addView(view23);
         Button view24 = new Button(this);
-        view24.setText("0");
+        view24.setText(android.text.Html.fromHtml("0", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view24 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view24.setMargins(8, 8, 8, 8);
         view24.setLayoutParams(lp_view24);
@@ -320,7 +329,7 @@ public class MainActivity extends Activity {
         this.btn_0 = view24;
         view23.addView(view24);
         Button view25 = new Button(this);
-        view25.setText(".");
+        view25.setText(android.text.Html.fromHtml(".", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view25 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view25.setMargins(8, 8, 8, 8);
         view25.setLayoutParams(lp_view25);
@@ -333,7 +342,7 @@ public class MainActivity extends Activity {
         this.btn_dot = view25;
         view23.addView(view25);
         Button view26 = new Button(this);
-        view26.setText("DEL");
+        view26.setText(android.text.Html.fromHtml("DEL", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view26 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view26.setMargins(8, 8, 8, 8);
         view26.setLayoutParams(lp_view26);
@@ -346,7 +355,7 @@ public class MainActivity extends Activity {
         this.btn_del = view26;
         view23.addView(view26);
         Button view27 = new Button(this);
-        view27.setText("=");
+        view27.setText(android.text.Html.fromHtml("=", android.text.Html.FROM_HTML_MODE_COMPACT));
         LinearLayout.LayoutParams lp_view27 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view27.setMargins(8, 8, 8, 8);
         view27.setLayoutParams(lp_view27);
@@ -362,32 +371,68 @@ public class MainActivity extends Activity {
     }
 
     public void updateWidgetText(String id, String text) {
-        if (id.equals("display")) { if (this.display != null) this.display.setText(text); return; }
-        if (id.equals("btn_clear")) { if (this.btn_clear != null) this.btn_clear.setText(text); return; }
-        if (id.equals("btn_lp")) { if (this.btn_lp != null) this.btn_lp.setText(text); return; }
-        if (id.equals("btn_rp")) { if (this.btn_rp != null) this.btn_rp.setText(text); return; }
-        if (id.equals("btn_div")) { if (this.btn_div != null) this.btn_div.setText(text); return; }
-        if (id.equals("btn_7")) { if (this.btn_7 != null) this.btn_7.setText(text); return; }
-        if (id.equals("btn_8")) { if (this.btn_8 != null) this.btn_8.setText(text); return; }
-        if (id.equals("btn_9")) { if (this.btn_9 != null) this.btn_9.setText(text); return; }
-        if (id.equals("btn_mul")) { if (this.btn_mul != null) this.btn_mul.setText(text); return; }
-        if (id.equals("btn_4")) { if (this.btn_4 != null) this.btn_4.setText(text); return; }
-        if (id.equals("btn_5")) { if (this.btn_5 != null) this.btn_5.setText(text); return; }
-        if (id.equals("btn_6")) { if (this.btn_6 != null) this.btn_6.setText(text); return; }
-        if (id.equals("btn_sub")) { if (this.btn_sub != null) this.btn_sub.setText(text); return; }
-        if (id.equals("btn_1")) { if (this.btn_1 != null) this.btn_1.setText(text); return; }
-        if (id.equals("btn_2")) { if (this.btn_2 != null) this.btn_2.setText(text); return; }
-        if (id.equals("btn_3")) { if (this.btn_3 != null) this.btn_3.setText(text); return; }
-        if (id.equals("btn_add")) { if (this.btn_add != null) this.btn_add.setText(text); return; }
-        if (id.equals("btn_0")) { if (this.btn_0 != null) this.btn_0.setText(text); return; }
-        if (id.equals("btn_dot")) { if (this.btn_dot != null) this.btn_dot.setText(text); return; }
-        if (id.equals("btn_del")) { if (this.btn_del != null) this.btn_del.setText(text); return; }
-        if (id.equals("btn_eq")) { if (this.btn_eq != null) this.btn_eq.setText(text); return; }
+        if (id.equals("display")) { if (this.display != null) this.display.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_clear")) { if (this.btn_clear != null) this.btn_clear.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_lp")) { if (this.btn_lp != null) this.btn_lp.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_rp")) { if (this.btn_rp != null) this.btn_rp.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_div")) { if (this.btn_div != null) this.btn_div.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_7")) { if (this.btn_7 != null) this.btn_7.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_8")) { if (this.btn_8 != null) this.btn_8.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_9")) { if (this.btn_9 != null) this.btn_9.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_mul")) { if (this.btn_mul != null) this.btn_mul.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_4")) { if (this.btn_4 != null) this.btn_4.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_5")) { if (this.btn_5 != null) this.btn_5.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_6")) { if (this.btn_6 != null) this.btn_6.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_sub")) { if (this.btn_sub != null) this.btn_sub.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_1")) { if (this.btn_1 != null) this.btn_1.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_2")) { if (this.btn_2 != null) this.btn_2.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_3")) { if (this.btn_3 != null) this.btn_3.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_add")) { if (this.btn_add != null) this.btn_add.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_0")) { if (this.btn_0 != null) this.btn_0.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_dot")) { if (this.btn_dot != null) this.btn_dot.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_del")) { if (this.btn_del != null) this.btn_del.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+        if (id.equals("btn_eq")) { if (this.btn_eq != null) this.btn_eq.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }
+    }
+
+    public void animateWidget(String id, String property, float to, int durationMs) {
+        if (id.equals("display")) { if (this.display != null) ObjectAnimator.ofFloat(this.display, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_clear")) { if (this.btn_clear != null) ObjectAnimator.ofFloat(this.btn_clear, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_lp")) { if (this.btn_lp != null) ObjectAnimator.ofFloat(this.btn_lp, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_rp")) { if (this.btn_rp != null) ObjectAnimator.ofFloat(this.btn_rp, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_div")) { if (this.btn_div != null) ObjectAnimator.ofFloat(this.btn_div, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_7")) { if (this.btn_7 != null) ObjectAnimator.ofFloat(this.btn_7, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_8")) { if (this.btn_8 != null) ObjectAnimator.ofFloat(this.btn_8, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_9")) { if (this.btn_9 != null) ObjectAnimator.ofFloat(this.btn_9, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_mul")) { if (this.btn_mul != null) ObjectAnimator.ofFloat(this.btn_mul, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_4")) { if (this.btn_4 != null) ObjectAnimator.ofFloat(this.btn_4, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_5")) { if (this.btn_5 != null) ObjectAnimator.ofFloat(this.btn_5, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_6")) { if (this.btn_6 != null) ObjectAnimator.ofFloat(this.btn_6, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_sub")) { if (this.btn_sub != null) ObjectAnimator.ofFloat(this.btn_sub, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_1")) { if (this.btn_1 != null) ObjectAnimator.ofFloat(this.btn_1, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_2")) { if (this.btn_2 != null) ObjectAnimator.ofFloat(this.btn_2, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_3")) { if (this.btn_3 != null) ObjectAnimator.ofFloat(this.btn_3, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_add")) { if (this.btn_add != null) ObjectAnimator.ofFloat(this.btn_add, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_0")) { if (this.btn_0 != null) ObjectAnimator.ofFloat(this.btn_0, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_dot")) { if (this.btn_dot != null) ObjectAnimator.ofFloat(this.btn_dot, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_del")) { if (this.btn_del != null) ObjectAnimator.ofFloat(this.btn_del, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("btn_eq")) { if (this.btn_eq != null) ObjectAnimator.ofFloat(this.btn_eq, property, to).setDuration(durationMs).start(); return; }
+        if (id.equals("main_layout")) { if (this.main_layout != null) ObjectAnimator.ofFloat(this.main_layout, property, to).setDuration(durationMs).start(); return; }
     }
 
     public String getWidgetText(String id) {
         if (id.equals("display") && this.display != null) return this.display.getText().toString();
         return "";
+    }
+
+    private void loadImage(ImageView view, String src) {
+        if (src.startsWith("http")) {
+            Executors.newSingleThreadExecutor().execute(() -> {
+                try {
+                    Bitmap bmp = BitmapFactory.decodeStream(new URL(src).openConnection().getInputStream());
+                    runOnUiThread(() -> view.setImageBitmap(bmp));
+                } catch (Exception e) { e.printStackTrace(); }
+            });
+        }
     }
 
     @Override

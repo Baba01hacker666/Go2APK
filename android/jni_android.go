@@ -88,6 +88,16 @@ static void CallRequestPermission(JNIEnv* env, jclass clazz, const char* permiss
     (*env)->CallStaticVoidMethod(env, clazz, mid, jPerm);
     (*env)->DeleteLocalRef(env, jPerm);
 }
+
+static void CallAnimate(JNIEnv* env, jclass clazz, const char* id, const char* property, float to, int durationMs) {
+    jmethodID mid = (*env)->GetStaticMethodID(env, clazz, "animate", "(Ljava/lang/String;Ljava/lang/String;FI)V");
+    if (mid == NULL) return;
+    jstring jId = (*env)->NewStringUTF(env, id);
+    jstring jProp = (*env)->NewStringUTF(env, property);
+    (*env)->CallStaticVoidMethod(env, clazz, mid, jId, jProp, (jfloat)to, (jint)durationMs);
+    (*env)->DeleteLocalRef(env, jId);
+    (*env)->DeleteLocalRef(env, jProp);
+}
 */
 import "C"
 import "unsafe"
@@ -246,4 +256,19 @@ func requestPermissionNative(permission string, onResult func(granted bool)) {
 	cPerm := C.CString(permission)
 	defer C.free(unsafe.Pointer(cPerm))
 	C.CallRequestPermission(env, globalBridgeClass, cPerm)
+}
+
+func animateNative(id string, property string, to float32, durationMs int) {
+	if globalBridgeClass == 0 {
+		return
+	}
+	env := getEnv()
+	if env == nil {
+		return
+	}
+	cId := C.CString(id)
+	defer C.free(unsafe.Pointer(cId))
+	cProp := C.CString(property)
+	defer C.free(unsafe.Pointer(cProp))
+	C.CallAnimate(env, globalBridgeClass, cId, cProp, C.float(to), C.int(durationMs))
 }

@@ -57,6 +57,35 @@ type TextField struct {
 
 func (TextField) isWidget() {}
 
+// Image displays an image from a URL or local path.
+type Image struct {
+	ID    string
+	Src   string
+	Style Style
+	CSS   string
+}
+
+func (Image) isWidget() {}
+
+// Audio plays an audio file from a URL.
+type Audio struct {
+	ID       string
+	Src      string
+	AutoPlay bool
+}
+
+func (Audio) isWidget() {}
+
+// Video plays a video file from a URL.
+type Video struct {
+	ID    string
+	Src   string
+	Style Style
+	CSS   string
+}
+
+func (Video) isWidget() {}
+
 // Run starts the application with the given root widget.
 // Note: In Go2APK, this function is statically analyzed at build time to generate
 // the Android UI layout and JNI bindings, so the actual execution on Android

@@ -182,6 +182,8 @@ func parseComposite(compLit *ast.CompositeLit, events map[string]string) map[str
 			if id, ok := kv.Value.(*ast.Ident); ok {
 				fields[key] = id.Name
 			}
+		} else if id, ok := kv.Value.(*ast.Ident); ok && (id.Name == "true" || id.Name == "false") {
+			fields[key] = id.Name == "true"
 		}
 	}
 	return fields
@@ -243,6 +245,21 @@ func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 			}
 		}
 		return tf
+	case "Image":
+		img := ir.ImageWidget{ID: id, Style: style, CSS: css}
+		img.Src, _ = fields["Src"].(string)
+		return img
+	case "Audio":
+		aud := ir.AudioWidget{ID: id}
+		aud.Src, _ = fields["Src"].(string)
+		if autoPlay, ok := fields["AutoPlay"].(bool); ok {
+			aud.AutoPlay = autoPlay
+		}
+		return aud
+	case "Video":
+		vid := ir.VideoWidget{ID: id, Style: style, CSS: css}
+		vid.Src, _ = fields["Src"].(string)
+		return vid
 	}
 	return nil
 }

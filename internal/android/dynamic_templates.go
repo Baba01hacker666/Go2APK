@@ -56,6 +56,14 @@ final class NativeBridge {
         }
     }
 
+    /** Called from Go to animate a widget on the UI thread. */
+    public static void animate(String id, String property, float to, int durationMs) {
+        if (currentActivity instanceof MainActivity) {
+            currentActivity.runOnUiThread(() ->
+                ((MainActivity) currentActivity).animateWidget(id, property, to, durationMs));
+        }
+    }
+
     /** Called from Go to read the current text of a widget. */
     public static String getText(String id) {
         if (currentActivity instanceof MainActivity) {
@@ -152,6 +160,15 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.VideoView;
+import android.media.MediaPlayer;
+import android.net.Uri;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import java.net.URL;
+import java.util.concurrent.Executors;
+import android.animation.ObjectAnimator;
 
 public class MainActivity extends Activity {
 `, cfg.Package))
@@ -192,12 +209,30 @@ public class MainActivity extends Activity {
 	}
 	builder.WriteString(`    }
 
+    public void animateWidget(String id, String property, float to, int durationMs) {
+`)
+	if prog != nil && prog.UI != nil {
+		writeAnimateWidgetCases(&builder, prog.UI)
+	}
+	builder.WriteString(`    }
+
     public String getWidgetText(String id) {
 `)
 	if prog != nil && prog.UI != nil {
 		writeGetWidgetCases(&builder, prog.UI)
 	}
 	builder.WriteString(`        return "";
+    }
+
+    private void loadImage(ImageView view, String src) {
+        if (src.startsWith("http")) {
+            Executors.newSingleThreadExecutor().execute(() -> {
+                try {
+                    Bitmap bmp = BitmapFactory.decodeStream(new URL(src).openConnection().getInputStream());
+                    runOnUiThread(() -> view.setImageBitmap(bmp));
+                } catch (Exception e) { e.printStackTrace(); }
+            });
+        }
     }
 
     @Override
@@ -225,15 +260,54 @@ func writeUpdateWidgetCases(b *strings.Builder, w ir.Widget) {
 		}
 	case ir.TextViewWidget:
 		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) this.%s.setText(text); return; }\n", v.ID, v.ID, v.ID))
+			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) this.%s.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }\n", v.ID, v.ID, v.ID))
 		}
 	case ir.ButtonWidget:
 		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) this.%s.setText(text); return; }\n", v.ID, v.ID, v.ID))
+			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) this.%s.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }\n", v.ID, v.ID, v.ID))
 		}
 	case ir.TextFieldWidget:
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) this.%s.setText(text); return; }\n", v.ID, v.ID, v.ID))
+		}
+	}
+}
+
+func writeAnimateWidgetCases(b *strings.Builder, w ir.Widget) {
+	switch v := w.(type) {
+	case ir.ColumnWidget:
+		for _, child := range v.Children {
+			writeAnimateWidgetCases(b, child)
+		}
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) ObjectAnimator.ofFloat(this.%s, property, to).setDuration(durationMs).start(); return; }\n", v.ID, v.ID, v.ID))
+		}
+	case ir.RowWidget:
+		for _, child := range v.Children {
+			writeAnimateWidgetCases(b, child)
+		}
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) ObjectAnimator.ofFloat(this.%s, property, to).setDuration(durationMs).start(); return; }\n", v.ID, v.ID, v.ID))
+		}
+	case ir.TextViewWidget:
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) ObjectAnimator.ofFloat(this.%s, property, to).setDuration(durationMs).start(); return; }\n", v.ID, v.ID, v.ID))
+		}
+	case ir.ButtonWidget:
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) ObjectAnimator.ofFloat(this.%s, property, to).setDuration(durationMs).start(); return; }\n", v.ID, v.ID, v.ID))
+		}
+	case ir.TextFieldWidget:
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) ObjectAnimator.ofFloat(this.%s, property, to).setDuration(durationMs).start(); return; }\n", v.ID, v.ID, v.ID))
+		}
+	case ir.ImageWidget:
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) ObjectAnimator.ofFloat(this.%s, property, to).setDuration(durationMs).start(); return; }\n", v.ID, v.ID, v.ID))
+		}
+	case ir.VideoWidget:
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) ObjectAnimator.ofFloat(this.%s, property, to).setDuration(durationMs).start(); return; }\n", v.ID, v.ID, v.ID))
 		}
 	}
 }
@@ -286,6 +360,19 @@ func declareFields(b *strings.Builder, w ir.Widget) {
 	case ir.TextFieldWidget:
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("    private EditText %s;\n", v.ID))
+		}
+	case ir.ImageWidget:
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("    private ImageView %s;\n", v.ID))
+		}
+	case ir.AudioWidget:
+		// AudioWidget has no UI, but we could declare it as MediaPlayer if needed, though we don't have to unless we need to animate it, which doesn't make sense. But for consistency:
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("    private MediaPlayer %s;\n", v.ID))
+		}
+	case ir.VideoWidget:
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("    private VideoView %s;\n", v.ID))
 		}
 	}
 }
@@ -459,7 +546,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		return viewVar
 	case ir.TextViewWidget:
 		b.WriteString(fmt.Sprintf("        TextView %s = new TextView(this);\n", viewVar))
-		b.WriteString(fmt.Sprintf("        %s.setText(\"%s\");\n", viewVar, v.Text))
+		b.WriteString(fmt.Sprintf("        %s.setText(android.text.Html.fromHtml(\"%s\", android.text.Html.FROM_HTML_MODE_COMPACT));\n", viewVar, v.Text))
 		b.WriteString(fmt.Sprintf("        %s.setGravity(Gravity.END);\n", viewVar))
 		applyStyle(b, viewVar, v.Style, -1, -2, 0)
 		applyTextStyle(b, viewVar, v.Style, 32)
@@ -473,7 +560,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		return viewVar
 	case ir.ButtonWidget:
 		b.WriteString(fmt.Sprintf("        Button %s = new Button(this);\n", viewVar))
-		b.WriteString(fmt.Sprintf("        %s.setText(\"%s\");\n", viewVar, v.Text))
+		b.WriteString(fmt.Sprintf("        %s.setText(android.text.Html.fromHtml(\"%s\", android.text.Html.FROM_HTML_MODE_COMPACT));\n", viewVar, v.Text))
 		applyStyle(b, viewVar, v.Style, 0, -2, 1.0)
 		applyTextStyle(b, viewVar, v.Style, 24)
 		applyCSS(b, viewVar, v.CSS)
@@ -495,6 +582,46 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		b.WriteString(fmt.Sprintf("        %s.setHint(\"%s\");\n", viewVar, v.Placeholder))
 		applyStyle(b, viewVar, v.Style, -1, -2, 0)
 		applyTextStyle(b, viewVar, v.Style, 24)
+		applyCSS(b, viewVar, v.CSS)
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
+		}
+		if parentVar != "" {
+			b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
+		}
+		return viewVar
+	case ir.ImageWidget:
+		b.WriteString(fmt.Sprintf("        ImageView %s = new ImageView(this);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        loadImage(%s, \"%s\");\n", viewVar, v.Src))
+		applyStyle(b, viewVar, v.Style, -1, -2, 0)
+		applyCSS(b, viewVar, v.CSS)
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
+		}
+		if parentVar != "" {
+			b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
+		}
+		return viewVar
+	case ir.AudioWidget:
+		b.WriteString(fmt.Sprintf("        // AudioWidget has no UI, it plays sound\n"))
+		b.WriteString(fmt.Sprintf("        MediaPlayer %s = new MediaPlayer();\n", viewVar))
+		b.WriteString("        try {\n")
+		b.WriteString(fmt.Sprintf("            %s.setDataSource(\"%s\");\n", viewVar, v.Src))
+		b.WriteString(fmt.Sprintf("            %s.prepareAsync();\n", viewVar))
+		if v.AutoPlay {
+			b.WriteString(fmt.Sprintf("            %s.setOnPreparedListener(mp -> mp.start());\n", viewVar))
+		}
+		b.WriteString("        } catch (Exception e) { e.printStackTrace(); }\n")
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
+		}
+		// no addView for Audio as it is headless
+		return viewVar
+	case ir.VideoWidget:
+		b.WriteString(fmt.Sprintf("        VideoView %s = new VideoView(this);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.setVideoURI(Uri.parse(\"%s\"));\n", viewVar, v.Src))
+		b.WriteString(fmt.Sprintf("        %s.start();\n", viewVar))
+		applyStyle(b, viewVar, v.Style, -1, -2, 0)
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))

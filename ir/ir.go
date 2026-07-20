@@ -108,7 +108,33 @@ type TextFieldWidget struct {
 	Placeholder   string
 	Style         Style
 	CSS           string
-	OnChangedFunc string
+	OnChangedFunc string // Function name to call when text changes
 }
 
 func (TextFieldWidget) WidgetType() string { return "TextField" }
+
+type ImageWidget struct {
+	ID    string
+	Src   string
+	Style Style
+	CSS   string
+}
+
+func (ImageWidget) WidgetType() string { return "Image" }
+
+type AudioWidget struct {
+	ID       string
+	Src      string
+	AutoPlay bool
+}
+
+func (AudioWidget) WidgetType() string { return "Audio" }
+
+type VideoWidget struct {
+	ID    string
+	Src   string
+	Style Style
+	CSS   string
+}
+
+func (VideoWidget) WidgetType() string { return "Video" }

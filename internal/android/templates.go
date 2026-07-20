@@ -130,6 +130,9 @@ func RenderStyles() string {
 
 // RenderProguardRules creates a conservative app-specific rules file for R8.
 func RenderProguardRules() string {
-	return `# Add app-specific keep rules here when reflection or JNI entry points require them.
+	return `# Keep JNI bridge classes so Go can call Java methods
+-keep class *.NativeBridge { *; }
+-keep class *.MainActivity { *; }
+-keep class *.Go2APKBroadcastReceiver { *; }
 `
 }

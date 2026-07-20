@@ -99,7 +99,12 @@ func GetText(id string) string {
 	return getTextNative(id)
 }
 
-// UpdateText updates the text of a TextView or TextField widget.
-func UpdateText(id string, text string) {
+// UpdateText sets the text content of a widget by ID.
+func UpdateText(id, text string) {
 	updateTextNative(id, text)
+}
+
+// Animate animates a UI widget. property can be "alpha", "translationX", "translationY", "scaleX", "scaleY".
+func Animate(id string, property string, to float32, durationMs int) {
+	animateNative(id, property, to, durationMs)
 }
