@@ -51,7 +51,6 @@ public class MainActivity extends Activity {
         view1.setPadding(24, 24, 24, 24);
         view1.setBackgroundColor(Color.parseColor("#1E1E2E"));
         this.main_layout = view1;
-        LinearLayout rootView = view1;
         TextView view2 = new TextView(this);
         view2.setText("0");
         view2.setGravity(Gravity.END);
@@ -359,6 +358,30 @@ public class MainActivity extends Activity {
         });
         this.btn_eq = view27;
         view23.addView(view27);
-        return rootView;
+        return view1;
+    }
+
+    public void updateWidgetText(String id, String text) {
+        if (id.equals("display")) { if (this.display != null) this.display.setText(text); return; }
+        if (id.equals("btn_clear")) { if (this.btn_clear != null) this.btn_clear.setText(text); return; }
+        if (id.equals("btn_lp")) { if (this.btn_lp != null) this.btn_lp.setText(text); return; }
+        if (id.equals("btn_rp")) { if (this.btn_rp != null) this.btn_rp.setText(text); return; }
+        if (id.equals("btn_div")) { if (this.btn_div != null) this.btn_div.setText(text); return; }
+        if (id.equals("btn_7")) { if (this.btn_7 != null) this.btn_7.setText(text); return; }
+        if (id.equals("btn_8")) { if (this.btn_8 != null) this.btn_8.setText(text); return; }
+        if (id.equals("btn_9")) { if (this.btn_9 != null) this.btn_9.setText(text); return; }
+        if (id.equals("btn_mul")) { if (this.btn_mul != null) this.btn_mul.setText(text); return; }
+        if (id.equals("btn_4")) { if (this.btn_4 != null) this.btn_4.setText(text); return; }
+        if (id.equals("btn_5")) { if (this.btn_5 != null) this.btn_5.setText(text); return; }
+        if (id.equals("btn_6")) { if (this.btn_6 != null) this.btn_6.setText(text); return; }
+        if (id.equals("btn_sub")) { if (this.btn_sub != null) this.btn_sub.setText(text); return; }
+        if (id.equals("btn_1")) { if (this.btn_1 != null) this.btn_1.setText(text); return; }
+        if (id.equals("btn_2")) { if (this.btn_2 != null) this.btn_2.setText(text); return; }
+        if (id.equals("btn_3")) { if (this.btn_3 != null) this.btn_3.setText(text); return; }
+        if (id.equals("btn_add")) { if (this.btn_add != null) this.btn_add.setText(text); return; }
+        if (id.equals("btn_0")) { if (this.btn_0 != null) this.btn_0.setText(text); return; }
+        if (id.equals("btn_dot")) { if (this.btn_dot != null) this.btn_dot.setText(text); return; }
+        if (id.equals("btn_del")) { if (this.btn_del != null) this.btn_del.setText(text); return; }
+        if (id.equals("btn_eq")) { if (this.btn_eq != null) this.btn_eq.setText(text); return; }
     }
 }

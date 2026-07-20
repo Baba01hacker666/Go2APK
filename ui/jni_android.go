@@ -83,7 +83,7 @@ func Java_com_example_go2apkapp_NativeBridge_sendEventToGo(env *C.JNIEnv, clazz 
 	}
 	name := javaString(env, eventName)
 	handleEvent(name)
-	
+
 	msg := C.CString("Go callback finished: " + name)
 	defer C.free(unsafe.Pointer(msg))
 	return C.CreateJavaString(env, msg)
