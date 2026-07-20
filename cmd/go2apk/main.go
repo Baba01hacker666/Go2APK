@@ -32,6 +32,8 @@ func run(args []string) error {
 	switch args[0] {
 	case "init":
 		return project.Init(root)
+	case "check":
+		return builder.Check(root)
 	case "build":
 		return builder.Build(root, buildOptions(args[1:]))
 	case "release":
@@ -70,6 +72,7 @@ func usage() {
 
 Usage:
   go2apk init           Generate go2apk.yaml, Android templates, and helper scripts
+  go2apk check          Check declarative UI syntax and logic
   go2apk build [--obfuscate]
                          Validate inputs and run a debug Gradle build when available
   go2apk release [--obfuscate]

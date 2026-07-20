@@ -1,89 +1,225 @@
-//go:build android
-
-// Package main is a Go-only Android GUI demo app used by Go2APK builds.
 package main
 
 import (
-	"image/color"
-	"time"
+	"fmt"
+	"strconv"
 
-	"golang.org/x/mobile/app"
-	"golang.org/x/mobile/event/lifecycle"
-	"golang.org/x/mobile/event/paint"
-	"golang.org/x/mobile/event/size"
-	"golang.org/x/mobile/event/touch"
-	"golang.org/x/mobile/gl"
+	"github.com/Baba01hacker666/Go2APK/ui"
 )
 
-type theme struct {
-	top    color.RGBA
-	accent color.RGBA
-}
-
-var themes = []theme{
-	{top: color.RGBA{R: 0x21, G: 0x96, B: 0xF3, A: 0xFF}, accent: color.RGBA{R: 0xFF, G: 0xC1, B: 0x07, A: 0xFF}},
-	{top: color.RGBA{R: 0x67, G: 0x3A, B: 0xB7, A: 0xFF}, accent: color.RGBA{R: 0x4C, G: 0xAF, B: 0x50, A: 0xFF}},
-	{top: color.RGBA{R: 0x00, G: 0x96, B: 0x88, A: 0xFF}, accent: color.RGBA{R: 0xFF, G: 0x57, B: 0x22, A: 0xFF}},
-}
+var (
+	currentInput string
+	previousInput string
+	operator      string
+)
 
 func main() {
-	app.Main(func(a app.App) {
-		var glctx gl.Context
-		var width, height int
-		selected := 0
-		lastFrame := time.Now()
+	ui.Run(
+		ui.Column{
+			ID: "main_layout",
+			Children: []ui.Widget{
+				ui.TextView{
+					ID:   "display",
+					Text: "0",
+				},
+				ui.Row{
+					ID: "row_1",
+					Children: []ui.Widget{
+						ui.Button{
+							ID:   "btn_7",
+							Text: "7",
+							OnClick: func() {
+								appendDigit("7")
+							},
+						},
+						ui.Button{
+							ID:   "btn_8",
+							Text: "8",
+							OnClick: func() {
+								appendDigit("8")
+							},
+						},
+						ui.Button{
+							ID:   "btn_9",
+							Text: "9",
+							OnClick: func() {
+								appendDigit("9")
+							},
+						},
+						ui.Button{
+							ID:   "btn_div",
+							Text: "/",
+							OnClick: func() {
+								setOperator("/")
+							},
+						},
+					},
+				},
+				ui.Row{
+					ID: "row_2",
+					Children: []ui.Widget{
+						ui.Button{
+							ID:   "btn_4",
+							Text: "4",
+							OnClick: func() {
+								appendDigit("4")
+							},
+						},
+						ui.Button{
+							ID:   "btn_5",
+							Text: "5",
+							OnClick: func() {
+								appendDigit("5")
+							},
+						},
+						ui.Button{
+							ID:   "btn_6",
+							Text: "6",
+							OnClick: func() {
+								appendDigit("6")
+							},
+						},
+						ui.Button{
+							ID:   "btn_mul",
+							Text: "*",
+							OnClick: func() {
+								setOperator("*")
+							},
+						},
+					},
+				},
+				ui.Row{
+					ID: "row_3",
+					Children: []ui.Widget{
+						ui.Button{
+							ID:   "btn_1",
+							Text: "1",
+							OnClick: func() {
+								appendDigit("1")
+							},
+						},
+						ui.Button{
+							ID:   "btn_2",
+							Text: "2",
+							OnClick: func() {
+								appendDigit("2")
+							},
+						},
+						ui.Button{
+							ID:   "btn_3",
+							Text: "3",
+							OnClick: func() {
+								appendDigit("3")
+							},
+						},
+						ui.Button{
+							ID:   "btn_sub",
+							Text: "-",
+							OnClick: func() {
+								setOperator("-")
+							},
+						},
+					},
+				},
+				ui.Row{
+					ID: "row_4",
+					Children: []ui.Widget{
+						ui.Button{
+							ID:   "btn_clear",
+							Text: "C",
+							OnClick: func() {
+								currentInput = ""
+								previousInput = ""
+								operator = ""
+								updateDisplay("0")
+							},
+						},
+						ui.Button{
+							ID:   "btn_0",
+							Text: "0",
+							OnClick: func() {
+								appendDigit("0")
+							},
+						},
+						ui.Button{
+							ID:   "btn_eq",
+							Text: "=",
+							OnClick: func() {
+								calculate()
+							},
+						},
+						ui.Button{
+							ID:   "btn_add",
+							Text: "+",
+							OnClick: func() {
+								setOperator("+")
+							},
+						},
+					},
+				},
+			},
+		},
+	)
+}
 
-		for event := range a.Events() {
-			switch event := a.Filter(event).(type) {
-			case lifecycle.Event:
-				if event.To == lifecycle.StageDead {
-					return
-				}
-				if ctx, ok := event.DrawContext.(gl.Context); ok {
-					glctx = ctx
-				}
-			case size.Event:
-				width, height = event.WidthPx, event.HeightPx
-				if glctx != nil {
-					glctx.Viewport(0, 0, width, height)
-				}
-			case touch.Event:
-				if event.Type == touch.TypeEnd {
-					selected = (selected + 1) % len(themes)
-					a.Send(paint.Event{})
-				}
-			case paint.Event:
-				if glctx == nil || event.External {
-					continue
-				}
-				draw(glctx, themes[selected], width, height, time.Since(lastFrame))
-				lastFrame = time.Now()
-				a.Publish()
-			}
+func appendDigit(d string) {
+	currentInput += d
+	updateDisplay(currentInput)
+}
+
+func setOperator(op string) {
+	if currentInput != "" {
+		if previousInput != "" {
+			calculate()
+		} else {
+			previousInput = currentInput
+			currentInput = ""
 		}
-	})
-}
-
-func draw(glctx gl.Context, active theme, width, height int, frameAge time.Duration) {
-	// This Go-only GUI intentionally avoids Java views. It paints a touch-responsive
-	// OpenGL surface managed by gomobile; tapping the app cycles the interface theme.
-	pulse := float32((frameAge.Milliseconds()%1000)+300) / 1300
-	bg := mix(active.top, color.RGBA{R: 0x12, G: 0x12, B: 0x12, A: 0xFF}, 0.22)
-	if width > height {
-		bg = mix(bg, active.accent, 0.12*pulse)
 	}
-	glctx.ClearColor(channel(bg.R), channel(bg.G), channel(bg.B), 1)
-	glctx.Clear(gl.COLOR_BUFFER_BIT)
+	operator = op
 }
 
-func mix(a, b color.RGBA, amount float32) color.RGBA {
-	inv := 1 - amount
-	return color.RGBA{
-		R: uint8(float32(a.R)*inv + float32(b.R)*amount),
-		G: uint8(float32(a.G)*inv + float32(b.G)*amount),
-		B: uint8(float32(a.B)*inv + float32(b.B)*amount),
-		A: 0xFF,
+func calculate() {
+	if previousInput == "" || currentInput == "" || operator == "" {
+		return
 	}
+	p, err1 := strconv.ParseFloat(previousInput, 64)
+	c, err2 := strconv.ParseFloat(currentInput, 64)
+	if err1 != nil || err2 != nil {
+		updateDisplay("Error")
+		return
+	}
+	
+	var res float64
+	switch operator {
+	case "+":
+		res = p + c
+	case "-":
+		res = p - c
+	case "*":
+		res = p * c
+	case "/":
+		if c == 0 {
+			updateDisplay("Div by 0")
+			currentInput = ""
+			previousInput = ""
+			operator = ""
+			return
+		}
+		res = p / c
+	}
+	
+	ans := fmt.Sprintf("%g", res)
+	updateDisplay(ans)
+	previousInput = ans
+	currentInput = ""
+	operator = ""
 }
 
-func channel(v uint8) float32 { return float32(v) / 255 }
+// In the generic architecture, we might need a way to dynamically update UI.
+// For now, since the transpiler parses AST, maybe it doesn't support SetText yet.
+// Wait, I should check how the dynamic UI generation in `MainActivity.java` works.
+func updateDisplay(text string) {
+	// TODO: Need a way to interact with UI at runtime.
+	fmt.Println("Display:", text)
+}

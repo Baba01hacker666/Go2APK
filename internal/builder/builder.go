@@ -18,6 +18,21 @@ type Options struct {
 	Obfuscate bool
 }
 
+// Check validates the Go UI syntax using the AST parser without building.
+func Check(root string) error {
+	cfg, err := loadConfig(root)
+	if err != nil {
+		return err
+	}
+	f := frontend.New()
+	_, err = f.BuildIR(filepath.Join(root, cfg.Source))
+	if err != nil {
+		return fmt.Errorf("syntax check failed: %w", err)
+	}
+	fmt.Println("Syntax check passed.")
+	return nil
+}
+
 // Build validates the generated project and prepares debug APK outputs.
 func Build(root string, opts ...Options) error {
 	cfg, err := loadConfig(root)
