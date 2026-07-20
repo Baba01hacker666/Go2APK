@@ -13,14 +13,10 @@ final class NativeBridge {
     }
 
     static void sendEvent(String eventName) {
-        updateText("display", "Event: " + eventName);
-        String res = sendEventToGo(eventName);
-        if (res != null && !res.isEmpty()) {
-            updateText("display", res);
-        }
+        sendEventToGo(eventName);
     }
 
-    private static native String sendEventToGo(String eventName);
+    private static native void sendEventToGo(String eventName);
 
     public static void setActivity(Activity activity) {
         currentActivity = activity;

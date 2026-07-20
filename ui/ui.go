@@ -72,7 +72,6 @@ func RegisterEvent(name string, handler func()) {
 }
 
 func handleEvent(name string) {
-	UpdateText("display", "Go: "+name) // DEBUG
 	if handler, ok := eventRegistry[name]; ok {
 		handler()
 	}

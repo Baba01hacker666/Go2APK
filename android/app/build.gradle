@@ -44,7 +44,7 @@ tasks.register('buildGoApp', Exec) {
     description = 'Builds the Go JNI library.'
     group = 'build'
     def script = rootProject.file('../scripts/build-go-app.sh')
-    inputs.dir(rootProject.file('../native/app'))
+    inputs.dir(rootProject.file('../examples/demo'))
     outputs.dir(project.file('src/main/jniLibs'))
     workingDir rootProject.file('..')
     commandLine 'bash', script.absolutePath
