@@ -12,6 +12,8 @@ import (
 func RenderNativeBridge(cfg config.Config) string {
 	return fmt.Sprintf(`package %s;
 
+import android.app.Activity;
+
 final class NativeBridge {
     private static final String LIBRARY_NAME = "go2apkapp";
 
