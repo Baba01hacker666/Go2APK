@@ -163,7 +163,7 @@ func applyStyle(b *strings.Builder, viewVar string, style ir.Style, defaultWidth
 	} else if height == -2 {
 		heightStr = "LinearLayout.LayoutParams.WRAP_CONTENT"
 	}
-	
+
 	// If weight is set, Android prefers the scaling dimension to be 0
 	if weight > 0 {
 		// Heuristic: if we're a Row (usually width is MATCH, height is WRAP), and we want it to scale vertically, we should set height to 0.

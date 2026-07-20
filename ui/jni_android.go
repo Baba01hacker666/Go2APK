@@ -80,12 +80,12 @@ func updateTextNative(id string, text string) {
 	if env == nil {
 		return
 	}
-	
+
 	cId := C.CString(id)
 	defer C.free(unsafe.Pointer(cId))
-	
+
 	cText := C.CString(text)
 	defer C.free(unsafe.Pointer(cText))
-	
+
 	C.CallUpdateText(env, globalBridgeClass, cId, cText)
 }
