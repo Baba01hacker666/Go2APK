@@ -260,6 +260,11 @@ func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 		vid := ir.VideoWidget{ID: id, Style: style, CSS: css}
 		vid.Src, _ = fields["Src"].(string)
 		return vid
+	case "WebView":
+		wv := ir.WebViewWidget{ID: id, Style: style, CSS: css}
+		wv.Src, _ = fields["Src"].(string)
+		wv.HTML, _ = fields["HTML"].(string)
+		return wv
 	case "ScrollView":
 		sv := ir.ScrollViewWidget{ID: id, Style: style, CSS: css}
 		if children, ok := fields["Children"].([]ir.Widget); ok {

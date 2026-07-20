@@ -140,6 +140,17 @@ type VideoWidget struct {
 
 func (VideoWidget) WidgetType() string { return "Video" }
 
+// WebViewWidget represents a web view.
+type WebViewWidget struct {
+	ID    string
+	Src   string
+	HTML  string
+	Style Style
+	CSS   string
+}
+
+func (WebViewWidget) WidgetType() string { return "WebView" }
+
 // ScrollViewWidget represents a scrolling container.
 type ScrollViewWidget struct {
 	ID       string

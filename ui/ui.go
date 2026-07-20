@@ -86,6 +86,17 @@ type Video struct {
 
 func (Video) isWidget() {}
 
+// WebView renders web content from a URL or raw HTML string.
+type WebView struct {
+	ID    string
+	Src   string // URL to load
+	HTML  string // Raw HTML string to load (if Src is empty)
+	Style Style
+	CSS   string
+}
+
+func (WebView) isWidget() {}
+
 // ScrollView allows scrolling its child content.
 type ScrollView struct {
 	ID       string

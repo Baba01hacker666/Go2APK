@@ -138,6 +138,13 @@ func renderWidgetHTML(sb *strings.Builder, w ir.Widget) {
 	case ir.VideoWidget:
 		inlineCSS := generateInlineCSS(v.Style, v.CSS, "video")
 		sb.WriteString(fmt.Sprintf("    <video src=%q style=%q controls></video>\n", v.Src, inlineCSS))
+	case ir.WebViewWidget:
+		inlineCSS := generateInlineCSS(v.Style, v.CSS, "webview")
+		if v.Src != "" {
+			sb.WriteString(fmt.Sprintf("    <iframe src=%q class=\"go2apk-webview\" style=%q></iframe>\n", v.Src, inlineCSS))
+		} else if v.HTML != "" {
+			sb.WriteString(fmt.Sprintf("    <iframe srcdoc=%q class=\"go2apk-webview\" style=%q></iframe>\n", v.HTML, inlineCSS))
+		}
 	case ir.ScrollViewWidget:
 		inlineCSS := generateInlineCSS(v.Style, v.CSS, "scrollview")
 		// Give it a generic overflow-y: auto since it's a ScrollView

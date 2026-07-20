@@ -116,3 +116,25 @@ func TestParseCompositeCardView(t *testing.T) {
 		t.Errorf("Expected CSS to be parsed, got %s", cv.CSS)
 	}
 }
+
+func TestParseCompositeWebView(t *testing.T) {
+	comp := &ast.CompositeLit{
+		Type: &ast.SelectorExpr{Sel: &ast.Ident{Name: "WebView"}},
+		Elts: []ast.Expr{
+			&ast.KeyValueExpr{
+				Key:   &ast.Ident{Name: "Src"},
+				Value: &ast.BasicLit{Kind: token.STRING, Value: `"https://google.com"`},
+			},
+		},
+	}
+	events := make(map[string]string)
+	widget := parseWidget(comp, events)
+
+	wv, ok := widget.(ir.WebViewWidget)
+	if !ok {
+		t.Fatalf("Expected WebViewWidget, got %T", widget)
+	}
+	if wv.Src != "https://google.com" {
+		t.Errorf("Expected Src to be https://google.com, got %s", wv.Src)
+	}
+}

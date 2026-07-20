@@ -663,6 +663,25 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 			b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
 		}
 		return viewVar
+	case ir.WebViewWidget:
+		b.WriteString(fmt.Sprintf("        android.webkit.WebView %s = new android.webkit.WebView(this);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.getSettings().setJavaScriptEnabled(true);\n", viewVar))
+		if v.Src != "" {
+			b.WriteString(fmt.Sprintf("        %s.loadUrl(\"%s\");\n", viewVar, v.Src))
+		} else if v.HTML != "" {
+			escapedHTML := strings.ReplaceAll(v.HTML, "\"", "\\\"")
+			escapedHTML = strings.ReplaceAll(escapedHTML, "\n", "\\n")
+			b.WriteString(fmt.Sprintf("        %s.loadDataWithBaseURL(null, \"%s\", \"text/html\", \"UTF-8\", null);\n", viewVar, escapedHTML))
+		}
+		applyStyle(b, viewVar, v.Style, -1, -1, 0)
+		applyCSS(b, viewVar, v.CSS)
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
+		}
+		if parentVar != "" {
+			b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
+		}
+		return viewVar
 	case ir.ScrollViewWidget:
 		b.WriteString(fmt.Sprintf("        ScrollView %s = new ScrollView(this);\n", viewVar))
 		b.WriteString(fmt.Sprintf("        %s.setFillViewport(true);\n", viewVar))
