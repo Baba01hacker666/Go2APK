@@ -205,7 +205,6 @@ func loadConfig(root string) (config.Config, error) {
 	return config.Load(path)
 }
 
-
 // Preview generates an HTML preview of the Android application's UI structure
 // without requiring an Android build. It drops a preview.html in the root.
 func Preview(root string) error {

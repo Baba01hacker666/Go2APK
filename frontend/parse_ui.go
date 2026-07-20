@@ -36,37 +36,40 @@ func ExtractUI(pkgs []*packages.Package) (ir.Widget, map[string]string, []string
 				}
 
 				id, ok := sel.X.(*ast.Ident)
-				if !ok || id.Name != "ui" {
+				if !ok || (id.Name != "ui" && id.Name != "android") {
 					return true
 				}
 
-				switch sel.Sel.Name {
-				case "Run":
+				if id.Name == "ui" && sel.Sel.Name == "Run" {
 					fmt.Println("Found ui.Run call!")
 					if len(call.Args) > 0 {
 						rootWidget = parseWidget(call.Args[0], events)
 					}
 					return false
+				}
 
-				case "Permission":
-					// ui.Permission("android.permission.XYZ")
-					if len(call.Args) == 1 {
-						if perm := stringLit(call.Args[0]); perm != "" {
-							permissions = append(permissions, perm)
+				if id.Name == "android" {
+					switch sel.Sel.Name {
+					case "Permission":
+						// android.Permission("android.permission.XYZ")
+						if len(call.Args) == 1 {
+							if perm := stringLit(call.Args[0]); perm != "" {
+								permissions = append(permissions, perm)
+							}
 						}
-					}
 
-				case "BroadcastReceiver":
-					// ui.BroadcastReceiver(action, eventName, handler)
-					if len(call.Args) >= 2 {
-						action := stringLit(call.Args[0])
-						eventName := stringLit(call.Args[1])
-						if action != "" && eventName != "" {
-							receivers = append(receivers, ir.BroadcastReceiverDecl{
-								Name:     eventName,
-								Action:   action,
-								Exported: false,
-							})
+					case "BroadcastReceiver":
+						// android.BroadcastReceiver(action, eventName, handler)
+						if len(call.Args) >= 2 {
+							action := stringLit(call.Args[0])
+							eventName := stringLit(call.Args[1])
+							if action != "" && eventName != "" {
+								receivers = append(receivers, ir.BroadcastReceiverDecl{
+									Name:     eventName,
+									Action:   action,
+									Exported: false,
+								})
+							}
 						}
 					}
 				}

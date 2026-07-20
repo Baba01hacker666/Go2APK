@@ -13,7 +13,8 @@ The repository is both the CLI source and a self-contained starter project. The 
 ### Main design goals
 
 - **Build from scratch:** Completely avoid `gomobile` dependencies and build Android apps directly via Gradle and NDK.
-- **Declarative Go UI:** Users describe their Android application using standard Go code in the `ui` package (e.g., `ui.Button`, `ui.TextView`), and Go2APK transpiles this to native Android Views.
+- **Declarative Go UI:** Users describe their Android application using standard Go code in the `ui` package (e.g., `ui.Button`, `ui.TextView`). The transpiler maps standard inline CSS strings into native Android method calls (like `setBackgroundColor` and `setPadding`) at build time with zero runtime penalty.
+- **Native Android APIs:** Direct support for `android.Permission`, `android.Intent`, and `android.BroadcastReceiver` declarations in Go that inject configuration directly into the generated `AndroidManifest.xml` and JNI bindings.
 - **Low-friction onboarding:** `go2apk init` writes a complete starter configuration, Android project, helper scripts, and CI workflows.
 - **Reproducible Android setup:** SDK installer scripts pin command-line tools, platform, build-tools, and NDK versions.
 - **Generated project transparency:** Android templates live in Go source so `init`, AST transformations, and obfuscation updates are deterministic.
@@ -50,6 +51,7 @@ flowchart TD
 5. The first argument dispatches to one of the internal packages:
    - `init` → `project.Init(root)`
    - `build` → `builder.Build(root, buildOptions(args[1:]))`
+   - `preview` → `builder.Preview(root)`
    - `release` → `builder.Release(root, buildOptions(args[1:]))`
    - `clean` → `builder.Clean(root)`
    - `doctor` → `doctor.Check(os.Stdout)`
@@ -87,6 +89,12 @@ flowchart TD
 1. Uses the same frontend parsing as `build`.
 2. Runs Gradle tasks `assembleRelease` and `bundleRelease` from the `android/` directory.
 3. Copies release artifacts to `dist/release`.
+
+### `go2apk preview`
+
+1. Uses the same frontend parsing as `build` to construct the `ir.Widget` tree.
+2. Converts the IR tree into a static HTML/CSS file that mimics the Material Design layout of the Android views.
+3. Writes the output to `preview.html` in the project root, skipping Gradle, Java compilation, and NDK builds completely.
 
 ### `go2apk doctor` & `go2apk sdk install`
 (Remains standard toolchain detection and reproducible SDK downloader.)

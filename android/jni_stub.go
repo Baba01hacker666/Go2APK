@@ -1,6 +1,6 @@
 //go:build !android || !cgo
 
-package ui
+package android
 
 func updateTextNative(id string, text string) {}
 
