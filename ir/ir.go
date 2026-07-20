@@ -69,6 +69,7 @@ type Style struct {
 type ColumnWidget struct {
 	ID       string
 	Style    Style
+	CSS      string
 	Children []Widget
 }
 
@@ -77,6 +78,7 @@ func (ColumnWidget) WidgetType() string { return "Column" }
 type RowWidget struct {
 	ID       string
 	Style    Style
+	CSS      string
 	Children []Widget
 }
 
@@ -86,6 +88,7 @@ type TextViewWidget struct {
 	ID    string
 	Text  string
 	Style Style
+	CSS   string
 }
 
 func (TextViewWidget) WidgetType() string { return "TextView" }
@@ -94,6 +97,7 @@ type ButtonWidget struct {
 	ID          string
 	Text        string
 	Style       Style
+	CSS         string
 	OnClickFunc string
 }
 
@@ -103,6 +107,7 @@ type TextFieldWidget struct {
 	ID            string
 	Placeholder   string
 	Style         Style
+	CSS           string
 	OnChangedFunc string
 }
 

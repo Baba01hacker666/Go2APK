@@ -9,6 +9,7 @@ type Widget interface {
 type Column struct {
 	ID       string
 	Style    Style
+	CSS      string
 	Children []Widget
 }
 
@@ -18,6 +19,7 @@ func (Column) isWidget() {}
 type Row struct {
 	ID       string
 	Style    Style
+	CSS      string
 	Children []Widget
 }
 
@@ -28,6 +30,7 @@ type TextView struct {
 	ID    string
 	Text  string
 	Style Style
+	CSS   string
 }
 
 func (TextView) isWidget() {}
@@ -37,6 +40,7 @@ type Button struct {
 	ID      string
 	Text    string
 	Style   Style
+	CSS     string
 	OnClick func()
 }
 
@@ -47,6 +51,7 @@ type TextField struct {
 	ID          string
 	Placeholder string
 	Style       Style
+	CSS         string
 	OnChanged   func(text string)
 }
 

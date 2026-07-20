@@ -360,6 +360,66 @@ func applyTextStyle(b *strings.Builder, viewVar string, style ir.Style, defaultS
 	}
 }
 
+func applyCSS(b *strings.Builder, viewVar string, css string) {
+	if strings.TrimSpace(css) == "" {
+		return
+	}
+	rules := strings.Split(css, ";")
+	for _, rule := range rules {
+		rule = strings.TrimSpace(rule)
+		if rule == "" {
+			continue
+		}
+		parts := strings.SplitN(rule, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		prop := strings.TrimSpace(parts[0])
+		val := strings.TrimSpace(parts[1])
+
+		switch prop {
+		case "background-color":
+			b.WriteString(fmt.Sprintf("        %s.setBackgroundColor(Color.parseColor(\"%s\"));\n", viewVar, val))
+		case "color":
+			b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setTextColor(Color.parseColor(\"%s\"));\n", viewVar, viewVar, val))
+		case "font-size":
+			size := strings.TrimSuffix(val, "px")
+			size = strings.TrimSuffix(size, "dp")
+			size = strings.TrimSuffix(size, "sp")
+			b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setTextSize(Float.parseFloat(\"%s\"));\n", viewVar, viewVar, size))
+		case "padding":
+			pad := strings.TrimSuffix(val, "px")
+			b.WriteString(fmt.Sprintf("        %s.setPadding((int)Float.parseFloat(\"%s\"), (int)Float.parseFloat(\"%s\"), (int)Float.parseFloat(\"%s\"), (int)Float.parseFloat(\"%s\"));\n", viewVar, pad, pad, pad, pad))
+		case "border-radius":
+			rad := strings.TrimSuffix(val, "px")
+			b.WriteString(fmt.Sprintf("        {\n"))
+			b.WriteString(fmt.Sprintf("            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();\n"))
+			b.WriteString(fmt.Sprintf("            gd.setCornerRadius(Float.parseFloat(\"%s\"));\n", rad))
+			b.WriteString(fmt.Sprintf("            %s.setBackground(gd);\n", viewVar))
+			b.WriteString(fmt.Sprintf("        }\n"))
+		case "text-align":
+			var gravity string
+			switch val {
+			case "center":
+				gravity = "Gravity.CENTER"
+			case "right", "end":
+				gravity = "Gravity.END"
+			case "left", "start":
+				gravity = "Gravity.START"
+			}
+			if gravity != "" {
+				b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setGravity(%s);\n", viewVar, viewVar, gravity))
+			}
+		case "font-weight":
+			if val == "bold" {
+				b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setTypeface(android.graphics.Typeface.DEFAULT_BOLD);\n", viewVar, viewVar))
+			}
+		case "opacity":
+			b.WriteString(fmt.Sprintf("        %s.setAlpha(Float.parseFloat(\"%s\"));\n", viewVar, val))
+		}
+	}
+}
+
 func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) string {
 	*counter++
 	viewVar := fmt.Sprintf("view%d", *counter)
@@ -370,6 +430,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		b.WriteString(fmt.Sprintf("        %s.setOrientation(LinearLayout.VERTICAL);\n", viewVar))
 		b.WriteString(fmt.Sprintf("        %s.setGravity(Gravity.CENTER);\n", viewVar))
 		applyStyle(b, viewVar, v.Style, -1, -1, 0)
+		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
 		}
@@ -385,6 +446,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		b.WriteString(fmt.Sprintf("        %s.setOrientation(LinearLayout.HORIZONTAL);\n", viewVar))
 		b.WriteString(fmt.Sprintf("        %s.setGravity(Gravity.CENTER);\n", viewVar))
 		applyStyle(b, viewVar, v.Style, -1, -2, 0)
+		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
 		}
@@ -401,6 +463,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		b.WriteString(fmt.Sprintf("        %s.setGravity(Gravity.END);\n", viewVar))
 		applyStyle(b, viewVar, v.Style, -1, -2, 0)
 		applyTextStyle(b, viewVar, v.Style, 32)
+		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
 		}
@@ -413,6 +476,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		b.WriteString(fmt.Sprintf("        %s.setText(\"%s\");\n", viewVar, v.Text))
 		applyStyle(b, viewVar, v.Style, 0, -2, 1.0)
 		applyTextStyle(b, viewVar, v.Style, 24)
+		applyCSS(b, viewVar, v.CSS)
 		if v.OnClickFunc != "" {
 			// Trigger JNI event
 			b.WriteString(fmt.Sprintf("        %s.setOnClickListener(v -> {\n", viewVar))
@@ -431,6 +495,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		b.WriteString(fmt.Sprintf("        %s.setHint(\"%s\");\n", viewVar, v.Placeholder))
 		applyStyle(b, viewVar, v.Style, -1, -2, 0)
 		applyTextStyle(b, viewVar, v.Style, 24)
+		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
 		}

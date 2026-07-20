@@ -201,26 +201,27 @@ func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 	fields := parseComposite(compLit, events)
 	id, _ := fields["ID"].(string)
 	style, _ := fields["Style"].(ir.Style)
+	css, _ := fields["CSS"].(string)
 
 	switch typeName {
 	case "Column":
-		col := ir.ColumnWidget{ID: id, Style: style}
+		col := ir.ColumnWidget{ID: id, Style: style, CSS: css}
 		if children, ok := fields["Children"].([]ir.Widget); ok {
 			col.Children = children
 		}
 		return col
 	case "Row":
-		row := ir.RowWidget{ID: id, Style: style}
+		row := ir.RowWidget{ID: id, Style: style, CSS: css}
 		if children, ok := fields["Children"].([]ir.Widget); ok {
 			row.Children = children
 		}
 		return row
 	case "TextView":
-		tv := ir.TextViewWidget{ID: id, Style: style}
+		tv := ir.TextViewWidget{ID: id, Style: style, CSS: css}
 		tv.Text, _ = fields["Text"].(string)
 		return tv
 	case "Button":
-		btn := ir.ButtonWidget{ID: id, Style: style}
+		btn := ir.ButtonWidget{ID: id, Style: style, CSS: css}
 		btn.Text, _ = fields["Text"].(string)
 		if onClick, ok := fields["OnClick"].(string); ok {
 			btn.OnClickFunc = onClick
@@ -230,7 +231,7 @@ func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 		}
 		return btn
 	case "TextField":
-		tf := ir.TextFieldWidget{ID: id, Style: style}
+		tf := ir.TextFieldWidget{ID: id, Style: style, CSS: css}
 		tf.Placeholder, _ = fields["Placeholder"].(string)
 		if onChanged, ok := fields["OnChanged"].(string); ok {
 			tf.OnChangedFunc = onChanged
