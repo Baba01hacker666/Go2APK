@@ -205,13 +205,6 @@ func loadConfig(root string) (config.Config, error) {
 	return config.Load(path)
 }
 
-func Clean(root string) error {
-	dist := filepath.Join(root, "dist")
-	if err := os.RemoveAll(dist); err != nil {
-		return fmt.Errorf("failed to clean dist: %w", err)
-	}
-	return nil
-}
 
 // Preview generates an HTML preview of the Android application's UI structure
 // without requiring an Android build. It drops a preview.html in the root.
