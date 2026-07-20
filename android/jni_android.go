@@ -98,6 +98,14 @@ static void CallAnimate(JNIEnv* env, jclass clazz, const char* id, const char* p
     (*env)->DeleteLocalRef(env, jId);
     (*env)->DeleteLocalRef(env, jProp);
 }
+
+static void CallStartVpn(JNIEnv* env, jclass clazz, const char* configJson) {
+    jmethodID mid = (*env)->GetStaticMethodID(env, clazz, "startVpn", "(Ljava/lang/String;)V");
+    if (mid == NULL) return;
+    jstring jConfig = (*env)->NewStringUTF(env, configJson);
+    (*env)->CallStaticVoidMethod(env, clazz, mid, jConfig);
+    (*env)->DeleteLocalRef(env, jConfig);
+}
 */
 import "C"
 import "unsafe"
@@ -141,6 +149,16 @@ func Java_com_example_go2apkapp_NativeBridge_onPermissionResult(env *C.JNIEnv, c
 		delete(permissionCallbacks, perm)
 	}
 }
+
+//export Java_com_example_go2apkapp_NativeBridge_onVpnEstablished
+func Java_com_example_go2apkapp_NativeBridge_onVpnEstablished(env *C.JNIEnv, clazz C.jclass, fd C.jint) {
+	if VpnCallback != nil {
+		VpnCallback(int(fd))
+	}
+}
+
+// VpnCallback is called when the VPN interface is established.
+var VpnCallback func(fd int)
 
 func javaString(env *C.JNIEnv, str C.jstring) string {
 	if str == 0 {
@@ -271,4 +289,21 @@ func animateNative(id string, property string, to float32, durationMs int) {
 	cProp := C.CString(property)
 	defer C.free(unsafe.Pointer(cProp))
 	C.CallAnimate(env, globalBridgeClass, cId, cProp, C.float(to), C.int(durationMs))
+}
+
+// StartVPN requests Android VPN permissions. If granted, it starts the VPN
+// service with the given config. The established TUN file descriptor (fd)
+// is sent back to the onEstablished callback.
+func StartVPN(config VpnConfig, onEstablished func(fd int)) {
+	VpnCallback = onEstablished
+
+	env := getEnv()
+	if env == nil {
+		return
+	}
+
+	cConfig := C.CString(config.toJSON())
+	defer C.free(unsafe.Pointer(cConfig))
+
+	C.CallStartVpn(env, globalBridgeClass, cConfig)
 }

@@ -55,6 +55,14 @@ func RenderManifest(cfg config.Config, prog *ir.Program) string {
 			sb.WriteString("            </intent-filter>\n")
 			sb.WriteString("        </receiver>\n")
 		}
+
+		if prog.HasVPN {
+			sb.WriteString("        <service android:name=\".Go2ApkVpnService\" android:permission=\"android.permission.BIND_VPN_SERVICE\" android:exported=\"false\">\n")
+			sb.WriteString("            <intent-filter>\n")
+			sb.WriteString("                <action android:name=\"android.net.VpnService\" />\n")
+			sb.WriteString("            </intent-filter>\n")
+			sb.WriteString("        </service>\n")
+		}
 	}
 
 	sb.WriteString("    </application>\n")

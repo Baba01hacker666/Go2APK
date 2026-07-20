@@ -31,6 +31,7 @@ final class NativeBridge {
 
     private static native void sendEventToGo(String eventName);
     private static native void onPermissionResult(String permission, boolean granted);
+    static native void onVpnEstablished(int fd);
 
     // ── Java→Go dispatch ─────────────────────────────────────────────────────
 
@@ -118,6 +119,37 @@ final class NativeBridge {
     static void deliverPermissionResult(String permission, boolean granted) {
         onPermissionResult(permission, granted);
     }
+
+    // ── VPN ───────────────────────────────────────────────────────────────────
+
+    private static String pendingVpnConfig = null;
+    private static final int VPN_REQUEST_CODE = 1002;
+
+    public static void startVpn(String configJson) {
+        if (currentActivity == null) return;
+        Intent intent = android.net.VpnService.prepare(currentActivity);
+        if (intent != null) {
+            pendingVpnConfig = configJson;
+            currentActivity.startActivityForResult(intent, VPN_REQUEST_CODE);
+        } else {
+            // Already authorized
+            launchVpnService(configJson);
+        }
+    }
+
+    static void handleActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == VPN_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
+            launchVpnService(pendingVpnConfig);
+            pendingVpnConfig = null;
+        }
+    }
+
+    private static void launchVpnService(String configJson) {
+        if (currentActivity == null) return;
+        Intent intent = new Intent(currentActivity, Go2ApkVpnService.class);
+        intent.putExtra("config", configJson);
+        currentActivity.startService(intent);
+    }
 }
 `, cfg.Package)
 }
@@ -145,6 +177,70 @@ func RenderBroadcastReceiver(cfg config.Config, receivers []ir.BroadcastReceiver
 	sb.WriteString("    }\n")
 	sb.WriteString("}\n")
 	return sb.String()
+}
+
+// RenderVpnService generates the Java VpnService class if VPN is requested.
+func RenderVpnService(cfg config.Config) string {
+	return fmt.Sprintf(`package %s;
+
+import android.content.Intent;
+import android.net.VpnService;
+import android.os.ParcelFileDescriptor;
+import org.json.JSONObject;
+
+public class Go2ApkVpnService extends VpnService {
+    private ParcelFileDescriptor mInterface;
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && "STOP".equals(intent.getAction())) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+
+        String configJson = intent.getStringExtra("config");
+        if (configJson == null) return START_NOT_STICKY;
+
+        Builder builder = new Builder();
+        try {
+            JSONObject config = new JSONObject(configJson);
+            if (config.has("address")) {
+                builder.addAddress(config.getString("address"), config.optInt("prefix", 24));
+            }
+            if (config.has("route")) {
+                builder.addRoute(config.getString("route"), config.optInt("routePrefix", 0));
+            }
+            if (config.has("dns")) {
+                builder.addDnsServer(config.getString("dns"));
+            }
+            if (config.has("mtu")) {
+                builder.setMtu(config.getInt("mtu"));
+            }
+            if (config.has("session")) {
+                builder.setSession(config.getString("session"));
+            }
+
+            mInterface = builder.establish();
+            if (mInterface != null) {
+                int fd = mInterface.getFd();
+                NativeBridge.onVpnEstablished(fd);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return START_STICKY;
+    }
+
+    @Override
+    public void onDestroy() {
+        try {
+            if (mInterface != null) mInterface.close();
+        } catch (Exception e) {}
+        super.onDestroy();
+    }
+}
+`, cfg.Package)
 }
 
 func RenderDynamicMainActivity(cfg config.Config, prog *ir.Program) string {
@@ -233,6 +329,12 @@ public class MainActivity extends Activity {
                 } catch (Exception e) { e.printStackTrace(); }
             });
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        NativeBridge.handleActivityResult(requestCode, resultCode, data);
     }
 
     @Override

@@ -56,6 +56,12 @@ func prepareDynamicFiles(root string, cfg config.Config) error {
 				return err
 			}
 		}
+		// Generate VPN service class if needed
+		if prog.HasVPN {
+			if err := os.WriteFile(filepath.Join(javaDir, "Go2ApkVpnService.java"), []byte(android.RenderVpnService(cfg)), 0o644); err != nil {
+				return err
+			}
+		}
 		// Regenerate manifest to inject permissions and broadcast receivers
 		manifestDir := filepath.Join(root, "android", "app", "src", "main")
 		if err := os.MkdirAll(manifestDir, 0o755); err != nil {

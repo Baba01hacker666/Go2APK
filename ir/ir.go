@@ -18,6 +18,9 @@ type Program struct {
 
 	// Receivers lists broadcast receiver registrations declared via ui.BroadcastReceiver.
 	Receivers []BroadcastReceiverDecl
+
+	// HasVPN indicates if the program uses android.StartVPN, requiring VpnService setup.
+	HasVPN bool
 }
 
 // BroadcastReceiverDecl holds the manifest + runtime info for a broadcast receiver.

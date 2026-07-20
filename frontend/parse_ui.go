@@ -13,11 +13,12 @@ import (
 
 // ExtractUI parses the AST for ui.Run and extracts the widget tree, permissions,
 // and broadcast receiver declarations.
-func ExtractUI(pkgs []*packages.Package) (ir.Widget, map[string]string, []string, []ir.BroadcastReceiverDecl) {
+func ExtractUI(pkgs []*packages.Package) (ir.Widget, map[string]string, []string, []ir.BroadcastReceiverDecl, bool) {
 	events := make(map[string]string)
 	var rootWidget ir.Widget
 	var permissions []string
 	var receivers []ir.BroadcastReceiverDecl
+	hasVPN := false
 
 	for _, pkg := range pkgs {
 		if pkg.Name != "main" {
@@ -71,6 +72,8 @@ func ExtractUI(pkgs []*packages.Package) (ir.Widget, map[string]string, []string
 								})
 							}
 						}
+					case "StartVPN":
+						hasVPN = true
 					}
 				}
 
@@ -78,7 +81,7 @@ func ExtractUI(pkgs []*packages.Package) (ir.Widget, map[string]string, []string
 			})
 		}
 	}
-	return rootWidget, events, permissions, receivers
+	return rootWidget, events, permissions, receivers, hasVPN
 }
 
 // stringLit extracts the string value from a basic string literal AST node.

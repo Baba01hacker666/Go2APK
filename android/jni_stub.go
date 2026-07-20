@@ -18,3 +18,10 @@ func sendBroadcastNative(action string) {}
 func sendBroadcastWithExtrasNative(action string, extras map[string]string) {}
 
 func animateNative(id string, property string, to float32, durationMs int) {}
+
+// StartVPN requests Android VPN permissions. If granted, it starts the VPN
+// service with the given config. The established TUN file descriptor (fd)
+// is sent back to the onEstablished callback.
+func StartVPN(config VpnConfig, onEstablished func(fd int)) {
+	// Stub implementation
+}
