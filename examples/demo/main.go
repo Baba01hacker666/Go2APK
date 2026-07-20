@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	currentInput string
+	currentInput  string
 	previousInput string
 	operator      string
 )
@@ -189,7 +189,7 @@ func calculate() {
 		updateDisplay("Error")
 		return
 	}
-	
+
 	var res float64
 	switch operator {
 	case "+":
@@ -208,7 +208,7 @@ func calculate() {
 		}
 		res = p / c
 	}
-	
+
 	ans := fmt.Sprintf("%g", res)
 	updateDisplay(ans)
 	previousInput = ans
