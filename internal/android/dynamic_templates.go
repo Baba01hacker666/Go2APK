@@ -38,19 +38,11 @@ final class NativeBridge {
     private static Activity currentActivity;
 
     public static void updateText(String id, String text) {
-        if (currentActivity == null) return;
-        currentActivity.runOnUiThread(() -> {
-            try {
-                java.lang.reflect.Field field = currentActivity.getClass().getDeclaredField(id);
-                field.setAccessible(true);
-                Object view = field.get(currentActivity);
-                if (view instanceof android.widget.TextView) {
-                    ((android.widget.TextView) view).setText(text);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
+        if (currentActivity instanceof MainActivity) {
+            currentActivity.runOnUiThread(() -> {
+                ((MainActivity) currentActivity).updateWidgetText(id, text);
+            });
+        }
     }
 }
 `, cfg.Package)
@@ -102,9 +94,41 @@ public class MainActivity extends Activity {
 	}
 
 	builder.WriteString(`    }
+
+    public void updateWidgetText(String id, String text) {
+`)
+	if prog != nil && prog.UI != nil {
+		writeUpdateWidgetCases(&builder, prog.UI)
+	}
+	builder.WriteString(`    }
 }
 `)
 	return builder.String()
+}
+
+func writeUpdateWidgetCases(b *strings.Builder, w ir.Widget) {
+	switch v := w.(type) {
+	case ir.ColumnWidget:
+		for _, child := range v.Children {
+			writeUpdateWidgetCases(b, child)
+		}
+	case ir.RowWidget:
+		for _, child := range v.Children {
+			writeUpdateWidgetCases(b, child)
+		}
+	case ir.TextViewWidget:
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) this.%s.setText(text); return; }\n", v.ID, v.ID, v.ID))
+		}
+	case ir.ButtonWidget:
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) this.%s.setText(text); return; }\n", v.ID, v.ID, v.ID))
+		}
+	case ir.TextFieldWidget:
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) this.%s.setText(text); return; }\n", v.ID, v.ID, v.ID))
+		}
+	}
 }
 
 func declareFields(b *strings.Builder, w ir.Widget) {
