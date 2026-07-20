@@ -37,7 +37,8 @@ func Build(root string, opts ...Options) error {
 		return err
 	}
 	if err := runGradle(root, "assembleDebug"); err != nil {
-		return os.WriteFile(filepath.Join(out, "README.txt"), []byte(fmt.Sprintf("Debug build is configured, but neither gomobile nor Gradle could produce an APK in this environment: %v\n", err)), 0o644)
+		os.WriteFile(filepath.Join(out, "README.txt"), []byte(fmt.Sprintf("Debug build is configured, but neither gomobile nor Gradle could produce an APK in this environment: %v\n", err)), 0o644)
+		return fmt.Errorf("gradle build failed: %w", err)
 	}
 	return copyArtifacts(filepath.Join(root, "android", "app", "build", "outputs", "apk", "debug"), out)
 }
@@ -60,7 +61,8 @@ func Release(root string, opts ...Options) error {
 		return err
 	}
 	if err := runGradle(root, "assembleRelease", "bundleRelease"); err != nil {
-		return os.WriteFile(filepath.Join(out, "README.txt"), []byte(fmt.Sprintf("Release build is configured, but neither gomobile nor Gradle could produce artifacts in this environment: %v\n", err)), 0o644)
+		os.WriteFile(filepath.Join(out, "README.txt"), []byte(fmt.Sprintf("Release build is configured, but neither gomobile nor Gradle could produce artifacts in this environment: %v\n", err)), 0o644)
+		return fmt.Errorf("gradle build failed: %w", err)
 	}
 	if err := copyArtifacts(filepath.Join(root, "android", "app", "build", "outputs", "apk", "release"), out); err != nil {
 		return err

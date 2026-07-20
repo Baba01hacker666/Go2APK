@@ -30,7 +30,7 @@ func Parse(cfg ParseConfig) ([]*packages.Package, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load packages: %w", err)
 	}
-	
+
 	if packages.PrintErrors(pkgs) > 0 {
 		return nil, fmt.Errorf("packages contain errors")
 	}

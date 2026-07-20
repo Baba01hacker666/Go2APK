@@ -6,7 +6,7 @@ type Program struct {
 	Name       string
 	Packages   map[string]*Package
 	Entrypoint *Function
-	
+
 	// Future: UI hierarchy, Assets, Resources, JNI bindings
 }
 

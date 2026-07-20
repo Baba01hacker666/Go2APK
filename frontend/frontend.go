@@ -32,9 +32,9 @@ func (f *Frontend) BuildIR(dir string) (*ir.Program, error) {
 			Types: make(map[string]*ir.Type),
 			Funcs: make(map[string]*ir.Function),
 		}
-		
+
 		// TODO: Traverse AST/Types to populate IR structs and detect entrypoint
-		
+
 		prog.Packages[pkg.PkgPath] = irPkg
 	}
 

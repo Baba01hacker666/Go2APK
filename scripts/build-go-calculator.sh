@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OUT_DIR="android/app/src/main/jniLibs"
+ROOT_DIR="$(pwd)"
+OUT_DIR="$ROOT_DIR/android/app/src/main/jniLibs"
 SRC_DIR="native/calculator"
 LIB_NAME="libgo2apkcalc.so"
 
@@ -12,8 +13,8 @@ if [ "$HOST_ARCH" = "aarch64" ] && [ -n "${PREFIX:-}" ]; then
     # We are likely in Termux, where clang is natively targeting Android
     echo "Using Termux native clang for arm64..."
     mkdir -p "$OUT_DIR/arm64-v8a"
-    CGO_ENABLED=1 GOOS=android GOARCH=arm64 CC=clang \
-        go build -buildmode=c-shared -o "$OUT_DIR/arm64-v8a/$LIB_NAME" "./$SRC_DIR"
+    (cd "$SRC_DIR" && CGO_ENABLED=1 GOOS=android GOARCH=arm64 CC=clang \
+        go build -buildmode=c-shared -o "$OUT_DIR/arm64-v8a/$LIB_NAME" .)
 else
     # We are on a standard desktop/CI environment, use the NDK
     SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$(pwd)/.go2apk/android-sdk}}"
@@ -65,8 +66,8 @@ else
         echo "Building $ABI ($GOARCH)..."
         mkdir -p "$OUT_DIR/$ABI"
         
-        CGO_ENABLED=1 GOOS=$GOOS GOARCH=$GOARCH CC="$CC" \
-            go build -buildmode=c-shared -o "$OUT_DIR/$ABI/$LIB_NAME" "./$SRC_DIR"
+        (cd "$SRC_DIR" && CGO_ENABLED=1 GOOS=$GOOS GOARCH=$GOARCH CC="$CC" \
+            go build -buildmode=c-shared -o "$OUT_DIR/$ABI/$LIB_NAME" .)
     }
 
     build_for_abi "android" "arm64" "arm64-v8a" "aarch64-linux-android"
