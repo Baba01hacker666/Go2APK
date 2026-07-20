@@ -36,8 +36,20 @@ type Widget interface {
 	WidgetType() string
 }
 
+type Style struct {
+	BackgroundColor string
+	TextColor       string
+	TextSize        int
+	Padding         int
+	Margin          int
+	Width           int
+	Height          int
+	Weight          float32
+}
+
 type ColumnWidget struct {
 	ID       string
+	Style    Style
 	Children []Widget
 }
 
@@ -45,14 +57,16 @@ func (ColumnWidget) WidgetType() string { return "Column" }
 
 type RowWidget struct {
 	ID       string
+	Style    Style
 	Children []Widget
 }
 
 func (RowWidget) WidgetType() string { return "Row" }
 
 type TextViewWidget struct {
-	ID   string
-	Text string
+	ID    string
+	Text  string
+	Style Style
 }
 
 func (TextViewWidget) WidgetType() string { return "TextView" }
@@ -60,6 +74,7 @@ func (TextViewWidget) WidgetType() string { return "TextView" }
 type ButtonWidget struct {
 	ID          string
 	Text        string
+	Style       Style
 	OnClickFunc string
 }
 
@@ -68,6 +83,7 @@ func (ButtonWidget) WidgetType() string { return "Button" }
 type TextFieldWidget struct {
 	ID            string
 	Placeholder   string
+	Style         Style
 	OnChangedFunc string
 }
 

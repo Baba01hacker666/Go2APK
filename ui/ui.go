@@ -8,6 +8,7 @@ type Widget interface {
 // Column lays out its children vertically.
 type Column struct {
 	ID       string
+	Style    Style
 	Children []Widget
 }
 
@@ -16,6 +17,7 @@ func (Column) isWidget() {}
 // Row lays out its children horizontally.
 type Row struct {
 	ID       string
+	Style    Style
 	Children []Widget
 }
 
@@ -23,8 +25,9 @@ func (Row) isWidget() {}
 
 // TextView displays read-only text.
 type TextView struct {
-	ID   string
-	Text string
+	ID    string
+	Text  string
+	Style Style
 }
 
 func (TextView) isWidget() {}
@@ -33,6 +36,7 @@ func (TextView) isWidget() {}
 type Button struct {
 	ID      string
 	Text    string
+	Style   Style
 	OnClick func()
 }
 
@@ -42,6 +46,7 @@ func (Button) isWidget() {}
 type TextField struct {
 	ID          string
 	Placeholder string
+	Style       Style
 	OnChanged   func(text string)
 }
 
