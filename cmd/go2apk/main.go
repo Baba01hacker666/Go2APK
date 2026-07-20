@@ -31,7 +31,11 @@ func run(args []string) error {
 
 	switch args[0] {
 	case "init":
-		return project.Init(root)
+		force := false
+		if len(args) > 1 && args[1] == "--force" {
+			force = true
+		}
+		return project.Init(root, force)
 	case "check":
 		return builder.Check(root)
 	case "build":
@@ -71,7 +75,7 @@ func usage() {
 	fmt.Println(`Go2APK converts Go projects into Android APK scaffolding.
 
 Usage:
-  go2apk init           Generate go2apk.yaml, Android templates, and helper scripts
+  go2apk init [--force] Generate go2apk.yaml, Android templates, and helper scripts
   go2apk check          Check declarative UI syntax and logic
   go2apk build [--obfuscate]
                          Validate inputs and run a debug Gradle build when available

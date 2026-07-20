@@ -33,6 +33,30 @@ func Check(root string) error {
 	return nil
 }
 
+func prepareDynamicFiles(root string, cfg config.Config) error {
+	f := frontend.New()
+	prog, err := f.BuildIR(filepath.Join(root, cfg.Source))
+	if err != nil {
+		return fmt.Errorf("frontend parsing failed: %w", err)
+	}
+	if prog != nil {
+		javaDir := filepath.Join(root, "android", "app", "src", "main", "java", filepath.FromSlash(strings.ReplaceAll(cfg.Package, ".", "/")))
+		if err := os.MkdirAll(javaDir, 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(javaDir, "MainActivity.java"), []byte(android.RenderDynamicMainActivity(cfg, prog)), 0o644); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(javaDir, "NativeBridge.java"), []byte(android.RenderNativeBridge(cfg)), 0o644); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(root, cfg.Source, "events_gen.go"), []byte(android.RenderEventsGen(prog)), 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Build validates the generated project and prepares debug APK outputs.
 func Build(root string, opts ...Options) error {
 	cfg, err := loadConfig(root)
@@ -40,20 +64,12 @@ func Build(root string, opts ...Options) error {
 		return err
 	}
 	applyOptions(&cfg, opts)
-	// TODO: Replace Gradle scaffold with internal build pipeline
 	if err := require(filepath.Join(root, "android", "app", "build.gradle")); err != nil {
 		return err
 	}
 
-	// Dynamic AST Transpilation
-	f := frontend.New()
-	prog, err := f.BuildIR(filepath.Join(root, cfg.Source))
-	if err == nil && prog != nil {
-		javaDir := filepath.Join(root, "android", "app", "src", "main", "java", filepath.FromSlash(strings.ReplaceAll(cfg.Package, ".", "/")))
-		os.MkdirAll(javaDir, 0o755)
-		os.WriteFile(filepath.Join(javaDir, "MainActivity.java"), []byte(android.RenderDynamicMainActivity(cfg, prog)), 0o644)
-		os.WriteFile(filepath.Join(javaDir, "NativeBridge.java"), []byte(android.RenderNativeBridge(cfg)), 0o644)
-		os.WriteFile(filepath.Join(root, cfg.Source, "events_gen.go"), []byte(android.RenderEventsGen(prog)), 0o644)
+	if err := prepareDynamicFiles(root, cfg); err != nil {
+		return err
 	}
 
 	if cfg.Obfuscate {
@@ -66,7 +82,7 @@ func Build(root string, opts ...Options) error {
 		return err
 	}
 	if err := runGradle(root, "assembleDebug"); err != nil {
-		os.WriteFile(filepath.Join(out, "README.txt"), []byte(fmt.Sprintf("Debug build is configured, but neither gomobile nor Gradle could produce an APK in this environment: %v\n", err)), 0o644)
+		os.WriteFile(filepath.Join(out, "README.txt"), []byte(fmt.Sprintf("Debug build failed: %v\n", err)), 0o644)
 		return fmt.Errorf("gradle build failed: %w", err)
 	}
 	return copyArtifacts(filepath.Join(root, "android", "app", "build", "outputs", "apk", "debug"), out)
@@ -83,15 +99,8 @@ func Release(root string, opts ...Options) error {
 		return err
 	}
 
-	// Dynamic AST Transpilation
-	f := frontend.New()
-	prog, err := f.BuildIR(filepath.Join(root, cfg.Source))
-	if err == nil && prog != nil {
-		javaDir := filepath.Join(root, "android", "app", "src", "main", "java", filepath.FromSlash(strings.ReplaceAll(cfg.Package, ".", "/")))
-		os.MkdirAll(javaDir, 0o755)
-		os.WriteFile(filepath.Join(javaDir, "MainActivity.java"), []byte(android.RenderDynamicMainActivity(cfg, prog)), 0o644)
-		os.WriteFile(filepath.Join(javaDir, "NativeBridge.java"), []byte(android.RenderNativeBridge(cfg)), 0o644)
-		os.WriteFile(filepath.Join(root, cfg.Source, "events_gen.go"), []byte(android.RenderEventsGen(prog)), 0o644)
+	if err := prepareDynamicFiles(root, cfg); err != nil {
+		return err
 	}
 
 	if cfg.Obfuscate {
@@ -104,7 +113,7 @@ func Release(root string, opts ...Options) error {
 		return err
 	}
 	if err := runGradle(root, "assembleRelease", "bundleRelease"); err != nil {
-		os.WriteFile(filepath.Join(out, "README.txt"), []byte(fmt.Sprintf("Release build is configured, but neither gomobile nor Gradle could produce artifacts in this environment: %v\n", err)), 0o644)
+		os.WriteFile(filepath.Join(out, "README.txt"), []byte(fmt.Sprintf("Release build failed: %v\n", err)), 0o644)
 		return fmt.Errorf("gradle build failed: %w", err)
 	}
 	if err := copyArtifacts(filepath.Join(root, "android", "app", "build", "outputs", "apk", "release"), out); err != nil {

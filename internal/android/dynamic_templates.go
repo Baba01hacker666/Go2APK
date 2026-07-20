@@ -92,8 +92,9 @@ public class MainActivity extends Activity {
 `, cfg.Name))
 
 	if prog != nil && prog.UI != nil {
-		buildView(&builder, prog.UI, "rootView")
-		builder.WriteString("        return rootView;\n")
+		counter := 0
+		rootView := buildView(&builder, prog.UI, "", &counter)
+		builder.WriteString(fmt.Sprintf("        return %s;\n", rootView))
 	} else {
 		// Fallback blank view
 		builder.WriteString("        LinearLayout rootView = new LinearLayout(this);\n")
@@ -207,11 +208,9 @@ func applyTextStyle(b *strings.Builder, viewVar string, style ir.Style, defaultS
 	}
 }
 
-var viewCounter int
-
-func buildView(b *strings.Builder, w ir.Widget, parentVar string) string {
-	viewCounter++
-	viewVar := fmt.Sprintf("view%d", viewCounter)
+func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) string {
+	*counter++
+	viewVar := fmt.Sprintf("view%d", *counter)
 
 	switch v := w.(type) {
 	case ir.ColumnWidget:
@@ -222,14 +221,11 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string) string {
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
 		}
-		if parentVar != "rootView" {
+		if parentVar != "" {
 			b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
-		} else {
-			// Actually the first one is the rootView, so we reassign
-			b.WriteString(fmt.Sprintf("        LinearLayout %s = %s;\n", parentVar, viewVar))
 		}
 		for _, child := range v.Children {
-			buildView(b, child, viewVar)
+			buildView(b, child, viewVar, counter)
 		}
 		return viewVar
 	case ir.RowWidget:
@@ -240,11 +236,11 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string) string {
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
 		}
-		if parentVar != "" && parentVar != "rootView" {
+		if parentVar != "" {
 			b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
 		}
 		for _, child := range v.Children {
-			buildView(b, child, viewVar)
+			buildView(b, child, viewVar, counter)
 		}
 		return viewVar
 	case ir.TextViewWidget:
@@ -256,7 +252,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string) string {
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
 		}
-		if parentVar != "" && parentVar != "rootView" {
+		if parentVar != "" {
 			b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
 		}
 		return viewVar
@@ -274,7 +270,19 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string) string {
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
 		}
-		if parentVar != "" && parentVar != "rootView" {
+		if parentVar != "" {
+			b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
+		}
+		return viewVar
+	case ir.TextFieldWidget:
+		b.WriteString(fmt.Sprintf("        EditText %s = new EditText(this);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.setText(\"%s\");\n", viewVar, v.Text))
+		applyStyle(b, viewVar, v.Style, -1, -2, 0)
+		applyTextStyle(b, viewVar, v.Style, 24)
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
+		}
+		if parentVar != "" {
 			b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
 		}
 		return viewVar
@@ -282,7 +290,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string) string {
 
 	// Default fallback
 	b.WriteString(fmt.Sprintf("        View %s = new View(this);\n", viewVar))
-	if parentVar != "" && parentVar != "rootView" {
+	if parentVar != "" {
 		b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
 	}
 	return viewVar

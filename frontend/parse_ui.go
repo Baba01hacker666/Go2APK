@@ -17,6 +17,9 @@ func ExtractUI(pkgs []*packages.Package) (ir.Widget, map[string]string) {
 	var rootWidget ir.Widget
 
 	for _, pkg := range pkgs {
+		if pkg.Name != "main" {
+			continue
+		}
 		for _, file := range pkg.Syntax {
 			ast.Inspect(file, func(n ast.Node) bool {
 				// Look for ui.Run
@@ -114,6 +117,37 @@ func parseStyle(expr ast.Expr) ir.Style {
 	return style
 }
 
+func parseComposite(compLit *ast.CompositeLit, events map[string]string) map[string]interface{} {
+	fields := make(map[string]interface{})
+	for _, elt := range compLit.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+		key := kv.Key.(*ast.Ident).Name
+		if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
+			fields[key] = bl.Value[1 : len(bl.Value)-1]
+		} else if key == "Style" {
+			fields["Style"] = parseStyle(kv.Value)
+		} else if key == "Children" {
+			var children []ir.Widget
+			if cl, ok := kv.Value.(*ast.CompositeLit); ok {
+				for _, childElt := range cl.Elts {
+					if childWidget := parseWidget(childElt, events); childWidget != nil {
+						children = append(children, childWidget)
+					}
+				}
+			}
+			fields["Children"] = children
+		} else if key == "OnClick" || key == "OnChanged" {
+			if id, ok := kv.Value.(*ast.Ident); ok {
+				fields[key] = id.Name
+			}
+		}
+	}
+	return fields
+}
+
 func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 	compLit, ok := expr.(*ast.CompositeLit)
 	if !ok {
@@ -128,136 +162,45 @@ func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 		typeName = t.Name
 	}
 
+	fields := parseComposite(compLit, events)
+	id, _ := fields["ID"].(string)
+	style, _ := fields["Style"].(ir.Style)
+
 	switch typeName {
 	case "Column":
-		fmt.Println("Found Column")
-		col := ir.ColumnWidget{}
-		for _, elt := range compLit.Elts {
-			kv, ok := elt.(*ast.KeyValueExpr)
-			if !ok {
-				continue
-			}
-			key := kv.Key.(*ast.Ident).Name
-
-			if key == "ID" {
-				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					col.ID = bl.Value[1 : len(bl.Value)-1]
-				}
-			} else if key == "Style" {
-				col.Style = parseStyle(kv.Value)
-			} else if key == "Children" {
-				if cl, ok := kv.Value.(*ast.CompositeLit); ok {
-					for _, childElt := range cl.Elts {
-						childWidget := parseWidget(childElt, events)
-						if childWidget != nil {
-							col.Children = append(col.Children, childWidget)
-						}
-					}
-				}
-			}
+		col := ir.ColumnWidget{ID: id, Style: style}
+		if children, ok := fields["Children"].([]ir.Widget); ok {
+			col.Children = children
 		}
 		return col
 	case "Row":
-		row := ir.RowWidget{}
-		for _, elt := range compLit.Elts {
-			kv, ok := elt.(*ast.KeyValueExpr)
-			if !ok {
-				continue
-			}
-			key := kv.Key.(*ast.Ident).Name
-
-			if key == "ID" {
-				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					row.ID = bl.Value[1 : len(bl.Value)-1]
-				}
-			} else if key == "Style" {
-				row.Style = parseStyle(kv.Value)
-			} else if key == "Children" {
-				if cl, ok := kv.Value.(*ast.CompositeLit); ok {
-					for _, childElt := range cl.Elts {
-						childWidget := parseWidget(childElt, events)
-						if childWidget != nil {
-							row.Children = append(row.Children, childWidget)
-						}
-					}
-				}
-			}
+		row := ir.RowWidget{ID: id, Style: style}
+		if children, ok := fields["Children"].([]ir.Widget); ok {
+			row.Children = children
 		}
 		return row
 	case "TextView":
-		tv := ir.TextViewWidget{}
-		for _, elt := range compLit.Elts {
-			kv, ok := elt.(*ast.KeyValueExpr)
-			if !ok {
-				continue
-			}
-			key := kv.Key.(*ast.Ident).Name
-			if key == "ID" {
-				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					tv.ID = bl.Value[1 : len(bl.Value)-1]
-				}
-			} else if key == "Text" {
-				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					tv.Text = bl.Value[1 : len(bl.Value)-1]
-				}
-			} else if key == "Style" {
-				tv.Style = parseStyle(kv.Value)
-			}
-		}
+		tv := ir.TextViewWidget{ID: id, Style: style}
+		tv.Text, _ = fields["Text"].(string)
 		return tv
 	case "Button":
-		btn := ir.ButtonWidget{}
-		for _, elt := range compLit.Elts {
-			kv, ok := elt.(*ast.KeyValueExpr)
-			if !ok {
-				continue
-			}
-			key := kv.Key.(*ast.Ident).Name
-			if key == "ID" {
-				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					btn.ID = bl.Value[1 : len(bl.Value)-1]
-				}
-			} else if key == "Text" {
-				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					btn.Text = bl.Value[1 : len(bl.Value)-1]
-				}
-			} else if key == "Style" {
-				btn.Style = parseStyle(kv.Value)
-			} else if key == "OnClick" {
-				if id, ok := kv.Value.(*ast.Ident); ok {
-					btn.OnClickFunc = id.Name
-					if btn.ID != "" {
-						events[btn.ID+"_onclick"] = id.Name
-					}
-				}
+		btn := ir.ButtonWidget{ID: id, Style: style}
+		btn.Text, _ = fields["Text"].(string)
+		if onClick, ok := fields["OnClick"].(string); ok {
+			btn.OnClickFunc = onClick
+			if id != "" {
+				events[id+"_onclick"] = onClick
 			}
 		}
 		return btn
 	case "TextField":
-		tf := ir.TextFieldWidget{}
-		for _, elt := range compLit.Elts {
-			kv, ok := elt.(*ast.KeyValueExpr)
-			if !ok {
-				continue
-			}
-			key := kv.Key.(*ast.Ident).Name
-			if key == "ID" {
-				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					tf.ID = bl.Value[1 : len(bl.Value)-1]
-				}
-			} else if key == "Placeholder" {
-				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					tf.Placeholder = bl.Value[1 : len(bl.Value)-1]
-				}
-			} else if key == "Style" {
-				tf.Style = parseStyle(kv.Value)
-			} else if key == "OnChanged" {
-				if id, ok := kv.Value.(*ast.Ident); ok {
-					tf.OnChangedFunc = id.Name
-					if tf.ID != "" {
-						events[tf.ID+"_onchanged"] = id.Name
-					}
-				}
+		tf := ir.TextFieldWidget{ID: id, Style: style}
+		tf.Placeholder, _ = fields["Placeholder"].(string)
+		tf.Text, _ = fields["Text"].(string)
+		if onChanged, ok := fields["OnChanged"].(string); ok {
+			tf.OnChangedFunc = onChanged
+			if id != "" {
+				events[id+"_onchanged"] = onChanged
 			}
 		}
 		return tf

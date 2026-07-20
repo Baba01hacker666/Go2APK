@@ -13,7 +13,7 @@ import (
 )
 
 // Init creates the initial Go2APK configuration and Android project skeleton.
-func Init(root string) error {
+func Init(root string, force bool) error {
 	cfg := config.Default()
 	javaDir := filepath.ToSlash(filepath.Join("android/app/src/main/java", strings.ReplaceAll(cfg.Package, ".", "/")))
 	activityPath := filepath.ToSlash(filepath.Join(javaDir, "MainActivity.java"))
@@ -123,7 +123,8 @@ echo "Build complete."
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return err
 		}
-		if _, err := os.Stat(path); err == nil {
+		if _, err := os.Stat(path); err == nil && !force {
+			fmt.Printf("skipping existing file %s\n", path)
 			continue
 		}
 		perm := os.FileMode(0o644)
