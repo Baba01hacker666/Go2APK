@@ -3,8 +3,8 @@ package frontend
 import (
 	"fmt"
 
-	"github.com/go2apk/go2apk/ir"
-	"github.com/go2apk/go2apk/parser"
+	"github.com/Baba01hacker666/Go2APK/ir"
+	"github.com/Baba01hacker666/Go2APK/parser"
 )
 
 // Frontend orchestrates parsing and semantic analysis to produce the IR.

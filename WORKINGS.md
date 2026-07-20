@@ -564,7 +564,7 @@ Notes: values are simple scalar `key: value` entries.
 Purpose: root Go module definition.
 
 Responsibilities:
-- Declares module path `github.com/go2apk/go2apk` and Go version.
+- Declares module path `github.com/Baba01hacker666/Go2APK` and Go version.
 
 Public functions/classes: not code.
 

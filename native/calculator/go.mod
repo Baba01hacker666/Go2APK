@@ -1,3 +1,3 @@
-module github.com/go2apk/go2apk/native/calculator
+module github.com/Baba01hacker666/Go2APK/native/calculator
 
 go 1.24

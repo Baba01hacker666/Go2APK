@@ -3,7 +3,7 @@ package android
 import (
 	"fmt"
 
-	"github.com/go2apk/go2apk/internal/config"
+	"github.com/Baba01hacker666/Go2APK/internal/config"
 )
 
 // RenderManifest creates a minimal Android manifest for generated projects.

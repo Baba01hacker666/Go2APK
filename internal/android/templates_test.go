@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go2apk/go2apk/internal/config"
+	"github.com/Baba01hacker666/Go2APK/internal/config"
 )
 
 func TestRenderBuildGradleObfuscation(t *testing.T) {

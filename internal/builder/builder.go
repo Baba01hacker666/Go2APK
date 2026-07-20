@@ -6,9 +6,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/go2apk/go2apk/internal/android"
-	"github.com/go2apk/go2apk/internal/config"
-	"github.com/go2apk/go2apk/internal/gradle"
+	"github.com/Baba01hacker666/Go2APK/internal/android"
+	"github.com/Baba01hacker666/Go2APK/internal/config"
+	"github.com/Baba01hacker666/Go2APK/internal/gradle"
 )
 
 // Options controls build-time behavior.

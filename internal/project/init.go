@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go2apk/go2apk/internal/android"
-	"github.com/go2apk/go2apk/internal/config"
-	"github.com/go2apk/go2apk/internal/sdk"
-	"github.com/go2apk/go2apk/internal/workflow"
+	"github.com/Baba01hacker666/Go2APK/internal/android"
+	"github.com/Baba01hacker666/Go2APK/internal/config"
+	"github.com/Baba01hacker666/Go2APK/internal/sdk"
+	"github.com/Baba01hacker666/Go2APK/internal/workflow"
 )
 
 // Init creates the initial Go2APK configuration and Android project skeleton.

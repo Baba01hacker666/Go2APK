@@ -1,4 +1,4 @@
-module github.com/go2apk/go2apk
+module github.com/Baba01hacker666/Go2APK
 
 go 1.25.0
 

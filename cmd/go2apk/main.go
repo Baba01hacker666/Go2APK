@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/go2apk/go2apk/internal/builder"
-	"github.com/go2apk/go2apk/internal/doctor"
-	"github.com/go2apk/go2apk/internal/project"
-	"github.com/go2apk/go2apk/internal/sdk"
-	"github.com/go2apk/go2apk/internal/workflow"
+	"github.com/Baba01hacker666/Go2APK/internal/builder"
+	"github.com/Baba01hacker666/Go2APK/internal/doctor"
+	"github.com/Baba01hacker666/Go2APK/internal/project"
+	"github.com/Baba01hacker666/Go2APK/internal/sdk"
+	"github.com/Baba01hacker666/Go2APK/internal/workflow"
 )
 
 func main() {
