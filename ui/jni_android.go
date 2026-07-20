@@ -7,7 +7,7 @@ package ui
 #include <stdlib.h>
 
 // Forward declaration
-JNIEXPORT void JNICALL Java_com_example_go2apkapp_NativeBridge_sendEventToGo(JNIEnv* env, jclass clazz, jstring eventName);
+JNIEXPORT jstring JNICALL Java_com_example_go2apkapp_NativeBridge_sendEventToGo(JNIEnv* env, jclass clazz, jstring eventName);
 
 static const char* GetString(JNIEnv* env, jstring str) {
     return (*env)->GetStringUTFChars(env, str, NULL);
@@ -15,6 +15,10 @@ static const char* GetString(JNIEnv* env, jstring str) {
 
 static void ReleaseString(JNIEnv* env, jstring str, const char* chars) {
     (*env)->ReleaseStringUTFChars(env, str, chars);
+}
+
+static jstring CreateJavaString(JNIEnv* env, const char* str) {
+    return (*env)->NewStringUTF(env, str);
 }
 
 static jclass NewGlobalRef(JNIEnv* env, jclass cls) {
@@ -67,7 +71,7 @@ func JNI_OnLoad(vm *C.JavaVM, reserved unsafe.Pointer) C.jint {
 }
 
 //export Java_com_example_go2apkapp_NativeBridge_sendEventToGo
-func Java_com_example_go2apkapp_NativeBridge_sendEventToGo(env *C.JNIEnv, clazz C.jclass, eventName C.jstring) {
+func Java_com_example_go2apkapp_NativeBridge_sendEventToGo(env *C.JNIEnv, clazz C.jclass, eventName C.jstring) C.jstring {
 	currentEnv = env
 	defer func() { currentEnv = nil }()
 
@@ -79,6 +83,10 @@ func Java_com_example_go2apkapp_NativeBridge_sendEventToGo(env *C.JNIEnv, clazz 
 	}
 	name := javaString(env, eventName)
 	handleEvent(name)
+	
+	msg := C.CString("Go callback finished: " + name)
+	defer C.free(unsafe.Pointer(msg))
+	return C.CreateJavaString(env, msg)
 }
 
 func javaString(env *C.JNIEnv, str C.jstring) string {
