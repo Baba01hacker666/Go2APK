@@ -51,6 +51,8 @@ func run(args []string) error {
 			return workflow.Init(root)
 		}
 		return fmt.Errorf("unknown workflow command; use: go2apk workflow init")
+	case "preview":
+		return builder.Preview(root)
 	case "sdk":
 		if len(args) > 1 && args[1] == "install" {
 			return sdk.Install(root, os.Stdout)

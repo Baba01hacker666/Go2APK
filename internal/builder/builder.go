@@ -204,3 +204,32 @@ func loadConfig(root string) (config.Config, error) {
 	}
 	return config.Load(path)
 }
+
+func Clean(root string) error {
+	dist := filepath.Join(root, "dist")
+	if err := os.RemoveAll(dist); err != nil {
+		return fmt.Errorf("failed to clean dist: %w", err)
+	}
+	return nil
+}
+
+// Preview generates an HTML preview of the Android application's UI structure
+// without requiring an Android build. It drops a preview.html in the root.
+func Preview(root string) error {
+	cfg, err := loadConfig(root)
+	if err != nil {
+		return err
+	}
+	f := frontend.New()
+	prog, err := f.BuildIR(filepath.Join(root, cfg.Source))
+	if err != nil {
+		return fmt.Errorf("frontend parsing failed: %w", err)
+	}
+	html := android.RenderPreviewHTML(cfg, prog)
+	outPath := filepath.Join(root, "preview.html")
+	if err := os.WriteFile(outPath, []byte(html), 0o644); err != nil {
+		return fmt.Errorf("failed to write preview.html: %w", err)
+	}
+	fmt.Printf("Generated UI preview at: %s\nOpen this file in your browser to view the layout.\n", outPath)
+	return nil
+}
