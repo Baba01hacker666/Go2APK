@@ -7,11 +7,18 @@ package main
 // Forward declaration of the native method we expose to Java.
 // The package name is com.example.go2apkapp and class is NativeBridge.
 JNIEXPORT void JNICALL Java_com_example_go2apkapp_NativeBridge_sendEventToGo(JNIEnv* env, jclass clazz, jstring eventName);
+
+static const char* GetString(JNIEnv* env, jstring str) {
+    return (*env)->GetStringUTFChars(env, str, NULL);
+}
+
+static void ReleaseString(JNIEnv* env, jstring str, const char* chars) {
+    (*env)->ReleaseStringUTFChars(env, str, chars);
+}
 */
 import "C"
 import (
 	"fmt"
-	"unsafe"
 )
 
 //export Java_com_example_go2apkapp_NativeBridge_sendEventToGo
@@ -25,12 +32,11 @@ func javaString(env *C.JNIEnv, str C.jstring) string {
 	if str == 0 {
 		return ""
 	}
-	var isCopy C.jboolean
-	chars := (*C.JNIEnv)(env).GetStringUTFChars(str, &isCopy)
+	chars := C.GetString(env, str)
 	if chars == nil {
 		return ""
 	}
-	defer (*C.JNIEnv)(env).ReleaseStringUTFChars(str, chars)
+	defer C.ReleaseString(env, str, chars)
 	return C.GoString(chars)
 }
 
