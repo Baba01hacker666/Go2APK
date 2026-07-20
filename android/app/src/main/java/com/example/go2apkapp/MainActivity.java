@@ -10,9 +10,6 @@ import android.widget.GridLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import java.math.BigDecimal;
-import java.math.MathContext;
-
 public class MainActivity extends Activity {
     private final CalculatorEngine engine = new CalculatorEngine();
     private TextView expressionView;
@@ -96,8 +93,7 @@ public class MainActivity extends Activity {
     }
 
     static final class CalculatorEngine {
-        private static final MathContext MATH_CONTEXT = MathContext.DECIMAL64;
-        private BigDecimal accumulator;
+        private String accumulator;
         private String pendingOperator;
         private String currentInput = "0";
         private boolean resetInput;
@@ -138,7 +134,7 @@ public class MainActivity extends Activity {
         }
 
         private void appendDigit(String digit) {
-            if (resetInput || "0".equals(currentInput)) {
+            if (resetInput || "0".equals(currentInput) || isError(currentInput)) {
                 currentInput = digit;
                 resetInput = false;
             } else {
@@ -147,7 +143,7 @@ public class MainActivity extends Activity {
         }
 
         private void appendDecimal() {
-            if (resetInput) {
+            if (resetInput || isError(currentInput)) {
                 currentInput = "0";
                 resetInput = false;
             }
@@ -166,7 +162,7 @@ public class MainActivity extends Activity {
         }
 
         private void toggleSign() {
-            if ("0".equals(currentInput)) {
+            if ("0".equals(currentInput) || isError(currentInput)) {
                 return;
             }
             currentInput = currentInput.startsWith("-") ? currentInput.substring(1) : "-" + currentInput;
@@ -176,10 +172,13 @@ public class MainActivity extends Activity {
             if (pendingOperator != null && !resetInput) {
                 calculate();
             } else {
-                accumulator = parse(currentInput);
+                accumulator = currentInput;
+            }
+            if (isError(currentInput)) {
+                return;
             }
             pendingOperator = operator;
-            expression = format(accumulator) + " " + operator;
+            expression = accumulator + " " + operator;
             resetInput = true;
         }
 
@@ -187,51 +186,17 @@ public class MainActivity extends Activity {
             if (pendingOperator == null || accumulator == null) {
                 return;
             }
-            BigDecimal right = parse(currentInput);
-            if ("÷".equals(pendingOperator) && BigDecimal.ZERO.compareTo(right) == 0) {
-                currentInput = "Cannot divide by 0";
-                accumulator = null;
-                pendingOperator = null;
-                expression = "";
-                resetInput = true;
-                return;
-            }
-            BigDecimal result;
-            switch (pendingOperator) {
-                case "+":
-                    result = accumulator.add(right, MATH_CONTEXT);
-                    break;
-                case "−":
-                    result = accumulator.subtract(right, MATH_CONTEXT);
-                    break;
-                case "×":
-                    result = accumulator.multiply(right, MATH_CONTEXT);
-                    break;
-                case "÷":
-                    result = accumulator.divide(right, MATH_CONTEXT);
-                    break;
-                case "%":
-                    result = accumulator.remainder(right, MATH_CONTEXT);
-                    break;
-                default:
-                    result = right;
-            }
-            expression = format(accumulator) + " " + pendingOperator + " " + format(right) + " =";
-            currentInput = format(result);
-            accumulator = result;
+            String right = currentInput;
+            String result = NativeCalculator.calculate(accumulator, pendingOperator, right);
+            expression = accumulator + " " + pendingOperator + " " + right + " =";
+            currentInput = result;
+            accumulator = isError(result) ? null : result;
             pendingOperator = null;
             resetInput = true;
         }
 
-        private BigDecimal parse(String value) {
-            if (value.startsWith("Cannot")) {
-                return BigDecimal.ZERO;
-            }
-            return new BigDecimal(value, MATH_CONTEXT);
-        }
-
-        private String format(BigDecimal value) {
-            return value.stripTrailingZeros().toPlainString();
+        private boolean isError(String value) {
+            return value.startsWith("Cannot") || value.startsWith("invalid") || value.startsWith("unsupported") || value.startsWith("Remainder");
         }
     }
 }

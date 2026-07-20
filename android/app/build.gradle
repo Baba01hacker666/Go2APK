@@ -19,6 +19,12 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
@@ -27,3 +33,20 @@ android {
         }
     }
 }
+
+
+tasks.register('buildGoCalculator') {
+    description = 'Builds the Go calculator JNI library without gomobile.'
+    group = 'build'
+    def script = rootProject.file('../scripts/build-go-calculator.sh')
+    inputs.dir(rootProject.file('../native/calculator'))
+    outputs.dir(project.file('src/main/jniLibs'))
+    doLast {
+        exec {
+            workingDir rootProject.file('..')
+            commandLine 'bash', script.absolutePath
+        }
+    }
+}
+
+preBuild.dependsOn('buildGoCalculator')

@@ -15,7 +15,9 @@ import (
 // Init creates the initial Go2APK configuration and Android project skeleton.
 func Init(root string) error {
 	cfg := config.Default()
-	activityPath := filepath.ToSlash(filepath.Join("android/app/src/main/java", strings.ReplaceAll(cfg.Package, ".", "/"), "MainActivity.java"))
+	javaDir := filepath.ToSlash(filepath.Join("android/app/src/main/java", strings.ReplaceAll(cfg.Package, ".", "/")))
+	activityPath := filepath.ToSlash(filepath.Join(javaDir, "MainActivity.java"))
+	nativeCalculatorPath := filepath.ToSlash(filepath.Join(javaDir, "NativeCalculator.java"))
 	files := map[string]string{
 		"go2apk.yaml": renderConfig(cfg),
 		"android/settings.gradle": `pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
@@ -31,12 +33,18 @@ include ':app'
 		"android/app/proguard-rules.pro":           android.RenderProguardRules(),
 		"android/app/src/main/AndroidManifest.xml": android.RenderManifest(cfg),
 		activityPath:                                 android.RenderMainActivity(cfg),
+		nativeCalculatorPath:                         android.RenderNativeCalculator(cfg),
 		"android/app/src/main/assets/.keep":          "",
 		"android/app/src/main/res/values/styles.xml": android.RenderStyles(),
 		"scripts/install-sdk.sh":                     sdk.InstallScript(),
-		"scripts/install-sdk.ps1":                    sdk.InstallPowerShell(),
-		".github/workflows/ci.yml":                   workflow.CIYAML,
-		".github/workflows/release.yml":              workflow.ReleaseYAML,
+		"scripts/build-go-calculator.sh": `#!/usr/bin/env bash
+set -euo pipefail
+echo "Copy scripts/build-go-calculator.sh from the Go2APK repository or run go2apk init from an up-to-date install." >&2
+exit 1
+`,
+		"scripts/install-sdk.ps1":       sdk.InstallPowerShell(),
+		".github/workflows/ci.yml":      workflow.CIYAML,
+		".github/workflows/release.yml": workflow.ReleaseYAML,
 	}
 
 	for name, contents := range files {
@@ -48,7 +56,7 @@ include ':app'
 			continue
 		}
 		perm := os.FileMode(0o644)
-		if name == "scripts/install-sdk.sh" {
+		if name == "scripts/install-sdk.sh" || name == "scripts/build-go-calculator.sh" {
 			perm = 0o755
 		}
 		if err := os.WriteFile(path, []byte(contents), perm); err != nil {

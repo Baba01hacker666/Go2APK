@@ -46,6 +46,12 @@ android {
         }
     }
 
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -59,6 +65,22 @@ android {
         }
     }
 }
+
+tasks.register('buildGoCalculator') {
+    description = 'Builds the Go calculator JNI library without gomobile.'
+    group = 'build'
+    def script = rootProject.file('../scripts/build-go-calculator.sh')
+    inputs.dir(rootProject.file('../native/calculator'))
+    outputs.dir(project.file('src/main/jniLibs'))
+    doLast {
+        exec {
+            workingDir rootProject.file('..')
+            commandLine 'bash', script.absolutePath
+        }
+    }
+}
+
+preBuild.dependsOn('buildGoCalculator')
 `, cfg.Package, cfg.TargetSDK, cfg.Package, cfg.MinSDK, cfg.TargetSDK, cfg.Version, cfg.Obfuscate, cfg.Obfuscate)
 }
 
@@ -76,6 +98,29 @@ func RenderProguardRules() string {
 `
 }
 
+// RenderNativeCalculator creates the Java JNI bridge for the Go calculator library.
+func RenderNativeCalculator(cfg config.Config) string {
+	return fmt.Sprintf(`package %s;
+
+final class NativeCalculator {
+    private static final String LIBRARY_NAME = "go2apkcalc";
+
+    static {
+        System.loadLibrary(LIBRARY_NAME);
+    }
+
+    private NativeCalculator() {
+    }
+
+    static String calculate(String left, String operator, String right) {
+        return calculateWithGo(left, operator, right);
+    }
+
+    private static native String calculateWithGo(String left, String operator, String right);
+}
+`, cfg.Package)
+}
+
 // RenderMainActivity creates a Java calculator Activity for Gradle fallback builds.
 func RenderMainActivity(cfg config.Config) string {
 	return fmt.Sprintf(`package %s;
@@ -89,9 +134,6 @@ import android.widget.Button;
 import android.widget.GridLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-
-import java.math.BigDecimal;
-import java.math.MathContext;
 
 public class MainActivity extends Activity {
     private final CalculatorEngine engine = new CalculatorEngine();
@@ -118,18 +160,30 @@ public class MainActivity extends Activity {
         expressionView.setTextColor(Color.rgb(189, 189, 189));
         expressionView.setTextSize(22);
         expressionView.setSingleLine(false);
-        root.addView(expressionView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        root.addView(expressionView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
 
         resultView = new TextView(this);
         resultView.setGravity(Gravity.END);
         resultView.setTextColor(Color.WHITE);
         resultView.setTextSize(42);
         resultView.setSingleLine(false);
-        root.addView(resultView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
+        root.addView(resultView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1));
 
         GridLayout keypad = new GridLayout(this);
         keypad.setColumnCount(4);
-        String[] keys = {"C", "⌫", "%%", "÷", "7", "8", "9", "×", "4", "5", "6", "−", "1", "2", "3", "+", "0", ".", "±", "="};
+        keypad.setRowCount(5);
+        String[] keys = {
+                "C", "⌫", "%%", "÷",
+                "7", "8", "9", "×",
+                "4", "5", "6", "−",
+                "1", "2", "3", "+",
+                "0", ".", "±", "="
+        };
         for (String key : keys) {
             Button button = new Button(this);
             button.setText(key);
@@ -148,7 +202,9 @@ public class MainActivity extends Activity {
             params.setMargins(6, 6, 6, 6);
             keypad.addView(button, params);
         }
-        root.addView(keypad, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        root.addView(keypad, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
         return root;
     }
 
@@ -162,8 +218,7 @@ public class MainActivity extends Activity {
     }
 
     static final class CalculatorEngine {
-        private static final MathContext MATH_CONTEXT = MathContext.DECIMAL64;
-        private BigDecimal accumulator;
+        private String accumulator;
         private String pendingOperator;
         private String currentInput = "0";
         private boolean resetInput;
@@ -187,9 +242,13 @@ public class MainActivity extends Activity {
             }
         }
 
-        String display() { return currentInput; }
+        String display() {
+            return currentInput;
+        }
 
-        String expression() { return expression.isEmpty() ? "Calculator" : expression; }
+        String expression() {
+            return expression.isEmpty() ? "Calculator" : expression;
+        }
 
         private void clear() {
             accumulator = null;
@@ -200,7 +259,7 @@ public class MainActivity extends Activity {
         }
 
         private void appendDigit(String digit) {
-            if (resetInput || "0".equals(currentInput)) {
+            if (resetInput || "0".equals(currentInput) || isError(currentInput)) {
                 currentInput = digit;
                 resetInput = false;
             } else {
@@ -209,7 +268,7 @@ public class MainActivity extends Activity {
         }
 
         private void appendDecimal() {
-            if (resetInput) {
+            if (resetInput || isError(currentInput)) {
                 currentInput = "0";
                 resetInput = false;
             }
@@ -228,19 +287,23 @@ public class MainActivity extends Activity {
         }
 
         private void toggleSign() {
-            if (!"0".equals(currentInput)) {
-                currentInput = currentInput.startsWith("-") ? currentInput.substring(1) : "-" + currentInput;
+            if ("0".equals(currentInput) || isError(currentInput)) {
+                return;
             }
+            currentInput = currentInput.startsWith("-") ? currentInput.substring(1) : "-" + currentInput;
         }
 
         private void chooseOperator(String operator) {
             if (pendingOperator != null && !resetInput) {
                 calculate();
             } else {
-                accumulator = parse(currentInput);
+                accumulator = currentInput;
+            }
+            if (isError(currentInput)) {
+                return;
             }
             pendingOperator = operator;
-            expression = format(accumulator) + " " + operator;
+            expression = accumulator + " " + operator;
             resetInput = true;
         }
 
@@ -248,42 +311,20 @@ public class MainActivity extends Activity {
             if (pendingOperator == null || accumulator == null) {
                 return;
             }
-            BigDecimal right = parse(currentInput);
-            if ("÷".equals(pendingOperator) && BigDecimal.ZERO.compareTo(right) == 0) {
-                currentInput = "Cannot divide by 0";
-                accumulator = null;
-                pendingOperator = null;
-                expression = "";
-                resetInput = true;
-                return;
-            }
-            BigDecimal result;
-            switch (pendingOperator) {
-                case "+": result = accumulator.add(right, MATH_CONTEXT); break;
-                case "−": result = accumulator.subtract(right, MATH_CONTEXT); break;
-                case "×": result = accumulator.multiply(right, MATH_CONTEXT); break;
-                case "÷": result = accumulator.divide(right, MATH_CONTEXT); break;
-                case "%%": result = accumulator.remainder(right, MATH_CONTEXT); break;
-                default: result = right;
-            }
-            expression = format(accumulator) + " " + pendingOperator + " " + format(right) + " =";
-            currentInput = format(result);
-            accumulator = result;
+            String right = currentInput;
+            String result = NativeCalculator.calculate(accumulator, pendingOperator, right);
+            expression = accumulator + " " + pendingOperator + " " + right + " =";
+            currentInput = result;
+            accumulator = isError(result) ? null : result;
             pendingOperator = null;
             resetInput = true;
         }
 
-        private BigDecimal parse(String value) {
-            if (value.startsWith("Cannot")) {
-                return BigDecimal.ZERO;
-            }
-            return new BigDecimal(value, MATH_CONTEXT);
-        }
-
-        private String format(BigDecimal value) {
-            return value.stripTrailingZeros().toPlainString();
+        private boolean isError(String value) {
+            return value.startsWith("Cannot") || value.startsWith("invalid") || value.startsWith("unsupported") || value.startsWith("Remainder");
         }
     }
 }
+
 `, cfg.Package, cfg.Name)
 }
