@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/Baba01hacker666/Go2APK/ui"
+	"github.com/Baba01hacker666/Go2APK/android"
 )
 
 var (
@@ -160,7 +161,7 @@ func calculate() {
 
 func updateDisplay(text string) {
 	fmt.Println("Display:", text)
-	ui.UpdateText("display", text)
+	android.UpdateText("display", text)
 }
 
 var (

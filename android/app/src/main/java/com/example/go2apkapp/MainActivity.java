@@ -384,4 +384,18 @@ public class MainActivity extends Activity {
         if (id.equals("btn_del")) { if (this.btn_del != null) this.btn_del.setText(text); return; }
         if (id.equals("btn_eq")) { if (this.btn_eq != null) this.btn_eq.setText(text); return; }
     }
+
+    public String getWidgetText(String id) {
+        if (id.equals("display") && this.display != null) return this.display.getText().toString();
+        return "";
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        for (int i = 0; i < permissions.length; i++) {
+            boolean granted = (grantResults[i] == android.content.pm.PackageManager.PERMISSION_GRANTED);
+            NativeBridge.deliverPermissionResult(permissions[i], granted);
+        }
+    }
 }
