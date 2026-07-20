@@ -1,41 +1,78 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ANDROID_APP_DIR="$ROOT_DIR/android/app"
-NATIVE_DIR="$ROOT_DIR/native/calculator"
-OUT_DIR="$ANDROID_APP_DIR/src/main/jniLibs"
-API_LEVEL="${GO2APK_ANDROID_API:-23}"
-NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}"
+OUT_DIR="android/app/src/main/jniLibs"
+SRC_DIR="native/calculator"
+LIB_NAME="libgo2apkcalc.so"
 
-if [[ -z "$NDK_HOME" ]]; then
-  SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$ROOT_DIR/android-sdk}}"
-  if [[ -d "$SDK_ROOT/ndk" ]]; then
-    NDK_HOME="$(find "$SDK_ROOT/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
-  fi
+HOST_OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+HOST_ARCH=$(uname -m)
+
+if [ "$HOST_ARCH" = "aarch64" ] && [ -n "${PREFIX:-}" ]; then
+    # We are likely in Termux, where clang is natively targeting Android
+    echo "Using Termux native clang for arm64..."
+    mkdir -p "$OUT_DIR/arm64-v8a"
+    CGO_ENABLED=1 GOOS=android GOARCH=arm64 CC=clang \
+        go build -buildmode=c-shared -o "$OUT_DIR/arm64-v8a/$LIB_NAME" "./$SRC_DIR"
+else
+    # We are on a standard desktop/CI environment, use the NDK
+    SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$(pwd)/.go2apk/android-sdk}}"
+    NDK_HOME=""
+
+    if [ -d "$SDK_ROOT/ndk" ]; then
+        NDK_HOME=$(find "$SDK_ROOT/ndk" -mindepth 1 -maxdepth 1 -type d | sort -r | head -n 1)
+    fi
+
+    if [ -z "$NDK_HOME" ] || [ ! -d "$NDK_HOME" ]; then
+        echo "NDK not found in $SDK_ROOT/ndk. Please run go2apk sdk install or set ANDROID_HOME."
+        exit 1
+    fi
+
+    # Determine NDK host tag
+    if [ "$HOST_OS" = "linux" ]; then
+        HOST_TAG="linux-x86_64"
+    elif [ "$HOST_OS" = "darwin" ]; then
+        if [ "$HOST_ARCH" = "arm64" ]; then
+            HOST_TAG="darwin-aarch64"
+            # Fallback for older NDKs that only had x86_64 Mac binaries
+            if [ ! -d "$NDK_HOME/toolchains/llvm/prebuilt/$HOST_TAG" ]; then
+                HOST_TAG="darwin-x86_64"
+            fi
+        else
+            HOST_TAG="darwin-x86_64"
+        fi
+    else
+        HOST_TAG="windows-x86_64"
+    fi
+
+    TOOLCHAIN="$NDK_HOME/toolchains/llvm/prebuilt/$HOST_TAG/bin"
+
+    if [ ! -d "$TOOLCHAIN" ]; then
+        echo "Toolchain not found at $TOOLCHAIN"
+        exit 1
+    fi
+
+    API=24
+
+    build_for_abi() {
+        local GOOS=$1
+        local GOARCH=$2
+        local ABI=$3
+        local CC_PREFIX=$4
+        
+        local CC="${TOOLCHAIN}/${CC_PREFIX}${API}-clang"
+        
+        echo "Building $ABI ($GOARCH)..."
+        mkdir -p "$OUT_DIR/$ABI"
+        
+        CGO_ENABLED=1 GOOS=$GOOS GOARCH=$GOARCH CC="$CC" \
+            go build -buildmode=c-shared -o "$OUT_DIR/$ABI/$LIB_NAME" "./$SRC_DIR"
+    }
+
+    build_for_abi "android" "arm64" "arm64-v8a" "aarch64-linux-android"
+    build_for_abi "android" "arm" "armeabi-v7a" "armv7a-linux-androideabi"
+    build_for_abi "android" "amd64" "x86_64" "x86_64-linux-android"
+    build_for_abi "android" "386" "x86" "i686-linux-android"
 fi
 
-if [[ -z "$NDK_HOME" || ! -d "$NDK_HOME" ]]; then
-  echo "Android NDK not found. Set ANDROID_NDK_HOME or install the SDK/NDK with scripts/install-sdk.sh." >&2
-  exit 1
-fi
-
-HOST_TAG="linux-x86_64"
-case "$(uname -s)" in
-  Darwin) HOST_TAG="darwin-x86_64" ;;
-  Linux) HOST_TAG="linux-x86_64" ;;
-esac
-TOOLCHAIN="$NDK_HOME/toolchains/llvm/prebuilt/$HOST_TAG/bin"
-
-build_abi() {
-  local abi="$1" goarch="$2" cc_prefix="$3"
-  mkdir -p "$OUT_DIR/$abi"
-  (cd "$NATIVE_DIR" && \
-    CGO_ENABLED=1 GOOS=android GOARCH="$goarch" CC="$TOOLCHAIN/${cc_prefix}${API_LEVEL}-clang" \
-      go build -buildmode=c-shared -trimpath -o "$OUT_DIR/$abi/libgo2apkcalc.so" .)
-}
-
-build_abi arm64-v8a arm64 aarch64-linux-android
-build_abi armeabi-v7a arm armv7a-linux-androideabi
-build_abi x86 386 i686-linux-android
-build_abi x86_64 amd64 x86_64-linux-android
+echo "Build complete."

@@ -39,8 +39,78 @@ include ':app'
 		"scripts/install-sdk.sh":                     sdk.InstallScript(),
 		"scripts/build-go-calculator.sh": `#!/usr/bin/env bash
 set -euo pipefail
-echo "Copy scripts/build-go-calculator.sh from the Go2APK repository or run go2apk init from an up-to-date install." >&2
-exit 1
+
+OUT_DIR="android/app/src/main/jniLibs"
+SRC_DIR="native/calculator"
+LIB_NAME="libgo2apkcalc.so"
+
+HOST_OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+HOST_ARCH=$(uname -m)
+
+if [ "$HOST_ARCH" = "aarch64" ] && [ -n "${PREFIX:-}" ]; then
+    echo "Using Termux native clang for arm64..."
+    mkdir -p "$OUT_DIR/arm64-v8a"
+    CGO_ENABLED=1 GOOS=android GOARCH=arm64 CC=clang \
+        go build -buildmode=c-shared -o "$OUT_DIR/arm64-v8a/$LIB_NAME" "./$SRC_DIR"
+else
+    SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$(pwd)/.go2apk/android-sdk}}"
+    NDK_HOME=""
+
+    if [ -d "$SDK_ROOT/ndk" ]; then
+        NDK_HOME=$(find "$SDK_ROOT/ndk" -mindepth 1 -maxdepth 1 -type d | sort -r | head -n 1)
+    fi
+
+    if [ -z "$NDK_HOME" ] || [ ! -d "$NDK_HOME" ]; then
+        echo "NDK not found in $SDK_ROOT/ndk. Please run go2apk sdk install or set ANDROID_HOME."
+        exit 1
+    fi
+
+    if [ "$HOST_OS" = "linux" ]; then
+        HOST_TAG="linux-x86_64"
+    elif [ "$HOST_OS" = "darwin" ]; then
+        if [ "$HOST_ARCH" = "arm64" ]; then
+            HOST_TAG="darwin-aarch64"
+            if [ ! -d "$NDK_HOME/toolchains/llvm/prebuilt/$HOST_TAG" ]; then
+                HOST_TAG="darwin-x86_64"
+            fi
+        else
+            HOST_TAG="darwin-x86_64"
+        fi
+    else
+        HOST_TAG="windows-x86_64"
+    fi
+
+    TOOLCHAIN="$NDK_HOME/toolchains/llvm/prebuilt/$HOST_TAG/bin"
+
+    if [ ! -d "$TOOLCHAIN" ]; then
+        echo "Toolchain not found at $TOOLCHAIN"
+        exit 1
+    fi
+
+    API=24
+
+    build_for_abi() {
+        local GOOS=$1
+        local GOARCH=$2
+        local ABI=$3
+        local CC_PREFIX=$4
+        
+        local CC="${TOOLCHAIN}/${CC_PREFIX}${API}-clang"
+        
+        echo "Building $ABI ($GOARCH)..."
+        mkdir -p "$OUT_DIR/$ABI"
+        
+        CGO_ENABLED=1 GOOS=$GOOS GOARCH=$GOARCH CC="$CC" \
+            go build -buildmode=c-shared -o "$OUT_DIR/$ABI/$LIB_NAME" "./$SRC_DIR"
+    }
+
+    build_for_abi "android" "arm64" "arm64-v8a" "aarch64-linux-android"
+    build_for_abi "android" "arm" "armeabi-v7a" "armv7a-linux-androideabi"
+    build_for_abi "android" "amd64" "x86_64" "x86_64-linux-android"
+    build_for_abi "android" "386" "x86" "i686-linux-android"
+fi
+
+echo "Build complete."
 `,
 		"scripts/install-sdk.ps1":       sdk.InstallPowerShell(),
 		".github/workflows/ci.yml":      workflow.CIYAML,

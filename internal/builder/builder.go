@@ -8,7 +8,6 @@ import (
 
 	"github.com/go2apk/go2apk/internal/android"
 	"github.com/go2apk/go2apk/internal/config"
-	"github.com/go2apk/go2apk/internal/gomobile"
 	"github.com/go2apk/go2apk/internal/gradle"
 )
 
@@ -24,11 +23,7 @@ func Build(root string, opts ...Options) error {
 		return err
 	}
 	applyOptions(&cfg, opts)
-	if _, err := gomobile.BuildAPK(gomobile.Options{Root: root, Config: cfg}); err == nil {
-		return nil
-	} else {
-		fmt.Fprintf(os.Stderr, "go2apk: gomobile build unavailable, falling back to Gradle scaffold: %v\n", err)
-	}
+	// TODO: Replace Gradle scaffold with internal build pipeline
 	if err := require(filepath.Join(root, "android", "app", "build.gradle")); err != nil {
 		return err
 	}
@@ -54,11 +49,7 @@ func Release(root string, opts ...Options) error {
 		return err
 	}
 	applyOptions(&cfg, opts)
-	if _, err := gomobile.BuildAPK(gomobile.Options{Root: root, Config: cfg, Release: true}); err == nil {
-		return nil
-	} else {
-		fmt.Fprintf(os.Stderr, "go2apk: gomobile release unavailable, falling back to Gradle scaffold: %v\n", err)
-	}
+	// TODO: Replace Gradle scaffold with internal build pipeline
 	if cfg.Obfuscate {
 		if err := writeObfuscatedGradle(root, cfg); err != nil {
 			return err

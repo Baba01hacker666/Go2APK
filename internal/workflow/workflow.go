@@ -61,16 +61,13 @@ jobs:
       - uses: android-actions/setup-android@v3
       - name: Install Android SDK packages
         run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
-      - name: Install gomobile
-        run: |
-          go install golang.org/x/mobile/cmd/gomobile@latest
-          gomobile init
       - name: Resolve demo mobile module
         run: go mod tidy
-        working-directory: examples/demo
-      - name: Build demo debug APK
+      - name: Initialize Project Scaffold
+        run: go run ./cmd/go2apk init
+      - name: Build Calculator APK via Gradle Scaffold
         run: go run ./cmd/go2apk build
-      - name: Verify demo APK exists
+      - name: Verify APK exists
         run: test -n "$(find dist/debug -maxdepth 1 -name '*.apk' -print -quit)"
       - uses: actions/upload-artifact@v4
         with:
@@ -104,14 +101,11 @@ jobs:
       - uses: android-actions/setup-android@v3
       - name: Install Android SDK packages
         run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
-      - name: Install gomobile
-        run: |
-          go install golang.org/x/mobile/cmd/gomobile@latest
-          gomobile init
       - name: Resolve demo mobile module
         run: go mod tidy
-        working-directory: examples/demo
-      - name: Build release artifacts
+      - name: Initialize Project Scaffold
+        run: go run ./cmd/go2apk init
+      - name: Build release artifacts via Gradle Scaffold
         run: go run ./cmd/go2apk release
       - name: Verify release APK exists
         run: test -n "$(find dist/release -maxdepth 1 -name '*.apk' -print -quit)"
