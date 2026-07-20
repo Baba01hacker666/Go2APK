@@ -21,10 +21,21 @@ static jclass NewGlobalRef(JNIEnv* env, jclass cls) {
     return (jclass)(*env)->NewGlobalRef(env, (jobject)cls);
 }
 
-static JNIEnv* AttachCurrentThread(JavaVM* vm) {
-    JNIEnv* env;
-    if ((*vm)->AttachCurrentThread(vm, &env, NULL) != JNI_OK) {
+static JavaVM* ExtractJavaVM(JNIEnv* env) {
+    JavaVM* vm;
+    if ((*env)->GetJavaVM(env, &vm) != JNI_OK) {
         return NULL;
+    }
+    return vm;
+}
+
+static JNIEnv* GetJNIEnv(JavaVM* vm) {
+    JNIEnv* env;
+    int status = (*vm)->GetEnv(vm, (void**)&env, JNI_VERSION_1_6);
+    if (status == JNI_EDETACHED) {
+        if ((*vm)->AttachCurrentThread(vm, &env, NULL) != JNI_OK) {
+            return NULL;
+        }
     }
     return env;
 }
@@ -53,6 +64,9 @@ func JNI_OnLoad(vm *C.JavaVM, reserved unsafe.Pointer) C.jint {
 
 //export Java_com_example_go2apkapp_NativeBridge_sendEventToGo
 func Java_com_example_go2apkapp_NativeBridge_sendEventToGo(env *C.JNIEnv, clazz C.jclass, eventName C.jstring) {
+	if globalVM == nil {
+		globalVM = C.ExtractJavaVM(env)
+	}
 	if globalBridgeClass == 0 {
 		globalBridgeClass = C.NewGlobalRef(env, clazz)
 	}
@@ -76,7 +90,7 @@ func updateTextNative(id string, text string) {
 	if globalVM == nil || globalBridgeClass == 0 {
 		return
 	}
-	env := C.AttachCurrentThread(globalVM)
+	env := C.GetJNIEnv(globalVM)
 	if env == nil {
 		return
 	}
