@@ -66,18 +66,14 @@ android {
     }
 }
 
-tasks.register('buildGoApp') {
+tasks.register('buildGoApp', Exec) {
     description = 'Builds the Go JNI library.'
     group = 'build'
     def script = rootProject.file('../scripts/build-go-app.sh')
     inputs.dir(rootProject.file('../native/app'))
     outputs.dir(project.file('src/main/jniLibs'))
-    doLast {
-        exec {
-            workingDir rootProject.file('..')
-            commandLine 'bash', script.absolutePath
-        }
-    }
+    workingDir rootProject.file('..')
+    commandLine 'bash', script.absolutePath
 }
 
 preBuild.dependsOn('buildGoApp')
