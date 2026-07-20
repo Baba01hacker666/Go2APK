@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"os"
 	"strconv"
 	"strings"
 
@@ -159,6 +160,28 @@ func parseStyle(expr ast.Expr) ir.Style {
 	return style
 }
 
+func resolveString(expr ast.Expr) (string, bool) {
+	if bl, ok := expr.(*ast.BasicLit); ok && bl.Kind == token.STRING {
+		return bl.Value[1 : len(bl.Value)-1], true
+	}
+	if call, ok := expr.(*ast.CallExpr); ok {
+		if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "ui" && sel.Sel.Name == "LoadFile" {
+				if len(call.Args) == 1 {
+					if pathStr, ok := resolveString(call.Args[0]); ok {
+						if b, err := os.ReadFile(pathStr); err == nil {
+							return string(b), true
+						} else {
+							fmt.Printf("Warning: failed to load file %s: %v\n", pathStr, err)
+						}
+					}
+				}
+			}
+		}
+	}
+	return "", false
+}
+
 func parseComposite(compLit *ast.CompositeLit, events map[string]string) map[string]interface{} {
 	fields := make(map[string]interface{})
 	for _, elt := range compLit.Elts {
@@ -167,8 +190,8 @@ func parseComposite(compLit *ast.CompositeLit, events map[string]string) map[str
 			continue
 		}
 		key := kv.Key.(*ast.Ident).Name
-		if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-			fields[key] = bl.Value[1 : len(bl.Value)-1]
+		if val, ok := resolveString(kv.Value); ok {
+			fields[key] = val
 		} else if key == "Style" {
 			fields["Style"] = parseStyle(kv.Value)
 		} else if key == "Children" {

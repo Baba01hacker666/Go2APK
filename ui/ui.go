@@ -1,5 +1,18 @@
 package ui
 
+import "os"
+
+// LoadFile reads a file from the filesystem. It is intended to load CSS and HTML
+// assets into widgets. Go2APK's build system also intercepts this to embed the
+// file contents during compilation.
+func LoadFile(path string) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 // Widget is the base interface for all UI components.
 type Widget interface {
 	isWidget()
