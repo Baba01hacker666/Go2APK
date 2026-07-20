@@ -196,7 +196,6 @@ func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 	case "TextField":
 		tf := ir.TextFieldWidget{ID: id, Style: style}
 		tf.Placeholder, _ = fields["Placeholder"].(string)
-		tf.Text, _ = fields["Text"].(string)
 		if onChanged, ok := fields["OnChanged"].(string); ok {
 			tf.OnChangedFunc = onChanged
 			if id != "" {

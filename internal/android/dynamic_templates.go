@@ -303,7 +303,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		return viewVar
 	case ir.TextFieldWidget:
 		b.WriteString(fmt.Sprintf("        EditText %s = new EditText(this);\n", viewVar))
-		b.WriteString(fmt.Sprintf("        %s.setText(\"%s\");\n", viewVar, v.Text))
+		b.WriteString(fmt.Sprintf("        %s.setHint(\"%s\");\n", viewVar, v.Placeholder))
 		applyStyle(b, viewVar, v.Style, -1, -2, 0)
 		applyTextStyle(b, viewVar, v.Style, 24)
 		if v.ID != "" {
