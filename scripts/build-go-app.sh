@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(pwd)"
 OUT_DIR="$ROOT_DIR/android/app/src/main/jniLibs"
-SRC_DIR="native/app"
+SRC_DIR="${1:-native/app}"
 LIB_NAME="libgo2apkapp.so"
 
 HOST_OS=$(uname -s | tr '[:upper:]' '[:lower:]')

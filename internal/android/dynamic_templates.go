@@ -27,6 +27,28 @@ final class NativeBridge {
     }
 
     private static native void sendEventToGo(String eventName);
+
+    public static void setActivity(Activity activity) {
+        currentActivity = activity;
+    }
+
+    private static Activity currentActivity;
+
+    public static void updateText(String id, String text) {
+        if (currentActivity == null) return;
+        currentActivity.runOnUiThread(() -> {
+            try {
+                java.lang.reflect.Field field = currentActivity.getClass().getDeclaredField(id);
+                field.setAccessible(true);
+                Object view = field.get(currentActivity);
+                if (view instanceof android.widget.TextView) {
+                    ((android.widget.TextView) view).setText(text);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
 }
 `, cfg.Package)
 }
@@ -60,6 +82,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setTitle("%s");
         setContentView(createAppView());
+        NativeBridge.setActivity(this);
     }
 
     private View createAppView() {
@@ -130,6 +153,8 @@ func applyStyle(b *strings.Builder, viewVar string, style ir.Style, defaultWidth
 		widthStr = "LinearLayout.LayoutParams.MATCH_PARENT"
 	} else if width == -2 {
 		widthStr = "LinearLayout.LayoutParams.WRAP_CONTENT"
+	} else if width == 0 && weight > 0 {
+		widthStr = "0"
 	}
 
 	heightStr := fmt.Sprintf("%d", height)
@@ -137,6 +162,19 @@ func applyStyle(b *strings.Builder, viewVar string, style ir.Style, defaultWidth
 		heightStr = "LinearLayout.LayoutParams.MATCH_PARENT"
 	} else if height == -2 {
 		heightStr = "LinearLayout.LayoutParams.WRAP_CONTENT"
+	}
+	
+	// If weight is set, Android prefers the scaling dimension to be 0
+	if weight > 0 {
+		// Heuristic: if we're a Row (usually width is MATCH, height is WRAP), and we want it to scale vertically, we should set height to 0.
+		// Wait, we don't know the parent's orientation here easily. We'll just let Android handle WRAP_CONTENT with weight (it works, but 0 is more efficient).
+		// Actually, if it's a Button in a horizontal Row, its width is usually set to 0.
+		if width == 0 {
+			widthStr = "0"
+		}
+		if height == 0 {
+			heightStr = "0"
+		}
 	}
 
 	b.WriteString(fmt.Sprintf("        LinearLayout.LayoutParams lp_%s = new LinearLayout.LayoutParams(%s, %s, %ff);\n", viewVar, widthStr, heightStr, weight))

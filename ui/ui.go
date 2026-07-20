@@ -59,3 +59,20 @@ func (TextField) isWidget() {}
 func Run(w Widget) {
 	// Stub implementation for compilation.
 }
+
+// UpdateText dynamically updates the text of a TextView widget.
+func UpdateText(id string, text string) {
+	updateTextNative(id, text)
+}
+
+var eventRegistry = make(map[string]func())
+
+func RegisterEvent(name string, handler func()) {
+	eventRegistry[name] = handler
+}
+
+func handleEvent(name string) {
+	if handler, ok := eventRegistry[name]; ok {
+		handler()
+	}
+}

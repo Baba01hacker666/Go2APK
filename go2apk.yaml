@@ -1,0 +1,9 @@
+name: Go2APK Calculator
+package: com.example.go2apkapp
+version: 0.1.0
+min_sdk: 23
+target_sdk: 36
+orientation: unspecified
+theme: @style/AppTheme
+source: ./examples/demo
+obfuscate: false

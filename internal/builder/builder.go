@@ -53,6 +53,7 @@ func Build(root string, opts ...Options) error {
 		os.MkdirAll(javaDir, 0o755)
 		os.WriteFile(filepath.Join(javaDir, "MainActivity.java"), []byte(android.RenderDynamicMainActivity(cfg, prog)), 0o644)
 		os.WriteFile(filepath.Join(javaDir, "NativeBridge.java"), []byte(android.RenderNativeBridge(cfg)), 0o644)
+		os.WriteFile(filepath.Join(root, cfg.Source, "events_gen.go"), []byte(android.RenderEventsGen(prog)), 0o644)
 	}
 
 	if cfg.Obfuscate {
@@ -90,6 +91,7 @@ func Release(root string, opts ...Options) error {
 		os.MkdirAll(javaDir, 0o755)
 		os.WriteFile(filepath.Join(javaDir, "MainActivity.java"), []byte(android.RenderDynamicMainActivity(cfg, prog)), 0o644)
 		os.WriteFile(filepath.Join(javaDir, "NativeBridge.java"), []byte(android.RenderNativeBridge(cfg)), 0o644)
+		os.WriteFile(filepath.Join(root, cfg.Source, "events_gen.go"), []byte(android.RenderEventsGen(prog)), 0o644)
 	}
 
 	if cfg.Obfuscate {

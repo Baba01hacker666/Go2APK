@@ -70,14 +70,14 @@ tasks.register('buildGoApp', Exec) {
     description = 'Builds the Go JNI library.'
     group = 'build'
     def script = rootProject.file('../scripts/build-go-app.sh')
-    inputs.dir(rootProject.file('../native/app'))
+    inputs.dir(rootProject.file('../%s'))
     outputs.dir(project.file('src/main/jniLibs'))
     workingDir rootProject.file('..')
-    commandLine 'bash', script.absolutePath
+    commandLine 'bash', script.absolutePath, '%s'
 }
 
 preBuild.dependsOn('buildGoApp')
-`, cfg.Package, cfg.TargetSDK, cfg.Package, cfg.MinSDK, cfg.TargetSDK, cfg.Version, cfg.Obfuscate, cfg.Obfuscate)
+`, cfg.Package, cfg.TargetSDK, cfg.Package, cfg.MinSDK, cfg.TargetSDK, cfg.Version, cfg.Obfuscate, cfg.Obfuscate, cfg.Source, cfg.Source)
 }
 
 // RenderStyles creates the default Android theme resource.
