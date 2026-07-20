@@ -25,6 +25,7 @@ final class NativeBridge {
     }
 
     static void sendEvent(String eventName) {
+        updateText("display", "Event: " + eventName);
         sendEventToGo(eventName);
     }
 
