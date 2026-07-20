@@ -17,7 +17,7 @@ func Init(root string) error {
 	cfg := config.Default()
 	javaDir := filepath.ToSlash(filepath.Join("android/app/src/main/java", strings.ReplaceAll(cfg.Package, ".", "/")))
 	activityPath := filepath.ToSlash(filepath.Join(javaDir, "MainActivity.java"))
-	nativeCalculatorPath := filepath.ToSlash(filepath.Join(javaDir, "NativeCalculator.java"))
+	nativeBridgePath := filepath.ToSlash(filepath.Join(javaDir, "NativeBridge.java"))
 	files := map[string]string{
 		"go2apk.yaml": renderConfig(cfg),
 		"android/settings.gradle": `pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
@@ -32,18 +32,18 @@ include ':app'
 		"android/app/build.gradle":                 android.RenderBuildGradle(cfg),
 		"android/app/proguard-rules.pro":           android.RenderProguardRules(),
 		"android/app/src/main/AndroidManifest.xml": android.RenderManifest(cfg),
-		activityPath:                                 android.RenderMainActivity(cfg),
-		nativeCalculatorPath:                         android.RenderNativeCalculator(cfg),
+		activityPath:                                 android.RenderDynamicMainActivity(cfg, nil),
+		nativeBridgePath:                             android.RenderNativeBridge(cfg),
 		"android/app/src/main/assets/.keep":          "",
 		"android/app/src/main/res/values/styles.xml": android.RenderStyles(),
 		"scripts/install-sdk.sh":                     sdk.InstallScript(),
-		"scripts/build-go-calculator.sh": `#!/usr/bin/env bash
+		"scripts/build-go-app.sh": `#!/usr/bin/env bash
 set -euo pipefail
 
 ROOT_DIR="$(pwd)"
 OUT_DIR="$ROOT_DIR/android/app/src/main/jniLibs"
-SRC_DIR="native/calculator"
-LIB_NAME="libgo2apkcalc.so"
+SRC_DIR="native/app"
+LIB_NAME="libgo2apkapp.so"
 
 HOST_OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 HOST_ARCH=$(uname -m)
@@ -127,7 +127,7 @@ echo "Build complete."
 			continue
 		}
 		perm := os.FileMode(0o644)
-		if name == "scripts/install-sdk.sh" || name == "scripts/build-go-calculator.sh" {
+		if name == "scripts/install-sdk.sh" || name == "scripts/build-go-app.sh" {
 			perm = 0o755
 		}
 		if err := os.WriteFile(path, []byte(contents), perm); err != nil {

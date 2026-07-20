@@ -5,7 +5,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
+	"github.com/Baba01hacker666/Go2APK/frontend"
 	"github.com/Baba01hacker666/Go2APK/internal/android"
 	"github.com/Baba01hacker666/Go2APK/internal/config"
 	"github.com/Baba01hacker666/Go2APK/internal/gradle"
@@ -27,6 +29,17 @@ func Build(root string, opts ...Options) error {
 	if err := require(filepath.Join(root, "android", "app", "build.gradle")); err != nil {
 		return err
 	}
+
+	// Dynamic AST Transpilation
+	f := frontend.New()
+	prog, err := f.BuildIR(filepath.Join(root, cfg.Source))
+	if err == nil && prog != nil {
+		javaDir := filepath.Join(root, "android", "app", "src", "main", "java", filepath.FromSlash(strings.ReplaceAll(cfg.Package, ".", "/")))
+		os.MkdirAll(javaDir, 0o755)
+		os.WriteFile(filepath.Join(javaDir, "MainActivity.java"), []byte(android.RenderDynamicMainActivity(cfg, prog)), 0o644)
+		os.WriteFile(filepath.Join(javaDir, "NativeBridge.java"), []byte(android.RenderNativeBridge(cfg)), 0o644)
+	}
+
 	if cfg.Obfuscate {
 		if err := writeObfuscatedGradle(root, cfg); err != nil {
 			return err
@@ -50,7 +63,20 @@ func Release(root string, opts ...Options) error {
 		return err
 	}
 	applyOptions(&cfg, opts)
-	// TODO: Replace Gradle scaffold with internal build pipeline
+	if err := require(filepath.Join(root, "android", "app", "build.gradle")); err != nil {
+		return err
+	}
+
+	// Dynamic AST Transpilation
+	f := frontend.New()
+	prog, err := f.BuildIR(filepath.Join(root, cfg.Source))
+	if err == nil && prog != nil {
+		javaDir := filepath.Join(root, "android", "app", "src", "main", "java", filepath.FromSlash(strings.ReplaceAll(cfg.Package, ".", "/")))
+		os.MkdirAll(javaDir, 0o755)
+		os.WriteFile(filepath.Join(javaDir, "MainActivity.java"), []byte(android.RenderDynamicMainActivity(cfg, prog)), 0o644)
+		os.WriteFile(filepath.Join(javaDir, "NativeBridge.java"), []byte(android.RenderNativeBridge(cfg)), 0o644)
+	}
+
 	if cfg.Obfuscate {
 		if err := writeObfuscatedGradle(root, cfg); err != nil {
 			return err

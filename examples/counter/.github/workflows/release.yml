@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - name: Resolve demo mobile module
+        run: go mod tidy
+      - name: Initialize Project Scaffold
+        run: go run ./cmd/go2apk init
+      - name: Build release artifacts via Gradle Scaffold
+        run: go run ./cmd/go2apk release
+      - name: Verify release APK exists
+        run: test -n "$(find dist/release -maxdepth 1 -name '*.apk' -print -quit)"
+      - name: Checksums
+        run: find dist/release -maxdepth 1 -type f -print0 | xargs -0 sha256sum > dist/release/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: go2apk-demo-release-apk
+          path: dist/release/*
+          if-no-files-found: error
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/release/*

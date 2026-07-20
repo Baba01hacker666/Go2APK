@@ -21,6 +21,8 @@ func (f *Frontend) BuildIR(dir string) (*ir.Program, error) {
 		return nil, fmt.Errorf("parsing failed: %w", err)
 	}
 
+	fmt.Printf("Parsed %d packages in dir %s\n", len(pkgs), dir)
+
 	prog := &ir.Program{
 		Packages: make(map[string]*ir.Package),
 	}
@@ -32,11 +34,17 @@ func (f *Frontend) BuildIR(dir string) (*ir.Program, error) {
 			Types: make(map[string]*ir.Type),
 			Funcs: make(map[string]*ir.Function),
 		}
+		
+		fmt.Printf("Package %s has %d syntax trees\n", pkg.Name, len(pkg.Syntax))
 
 		// TODO: Traverse AST/Types to populate IR structs and detect entrypoint
 
 		prog.Packages[pkg.PkgPath] = irPkg
 	}
+
+	uiTree, events := ExtractUI(pkgs)
+	prog.UI = uiTree
+	prog.Events = events
 
 	return prog, nil
 }

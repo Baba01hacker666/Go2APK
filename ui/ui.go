@@ -1,0 +1,56 @@
+package ui
+
+// Widget is the base interface for all UI components.
+type Widget interface {
+	isWidget()
+}
+
+// Column lays out its children vertically.
+type Column struct {
+	ID       string
+	Children []Widget
+}
+
+func (Column) isWidget() {}
+
+// Row lays out its children horizontally.
+type Row struct {
+	ID       string
+	Children []Widget
+}
+
+func (Row) isWidget() {}
+
+// TextView displays read-only text.
+type TextView struct {
+	ID   string
+	Text string
+}
+
+func (TextView) isWidget() {}
+
+// Button is a clickable widget.
+type Button struct {
+	ID      string
+	Text    string
+	OnClick func()
+}
+
+func (Button) isWidget() {}
+
+// TextField allows the user to enter text.
+type TextField struct {
+	ID          string
+	Placeholder string
+	OnChanged   func(text string)
+}
+
+func (TextField) isWidget() {}
+
+// Run starts the application with the given root widget.
+// Note: In Go2APK, this function is statically analyzed at build time to generate
+// the Android UI layout and JNI bindings, so the actual execution on Android
+// happens via generated Java code.
+func Run(w Widget) {
+	// Stub implementation for compilation.
+}
