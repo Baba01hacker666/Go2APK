@@ -2,24 +2,64 @@ package android
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Baba01hacker666/Go2APK/internal/config"
+	"github.com/Baba01hacker666/Go2APK/ir"
 )
 
-// RenderManifest creates a minimal Android manifest for generated projects.
-func RenderManifest(cfg config.Config) string {
-	return fmt.Sprintf(`<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET" />
-    <application android:extractNativeLibs="true" android:theme="%s" android:label="%s" android:allowBackup="true" android:supportsRtl="true">
-        <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="%s">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
-</manifest>
-`, cfg.Theme, cfg.Name, cfg.Orientation)
+// RenderManifest creates an Android manifest for the project, including
+// any permissions and broadcast receivers declared via the ui package.
+func RenderManifest(cfg config.Config, prog *ir.Program) string {
+	var sb strings.Builder
+
+	sb.WriteString(`<manifest xmlns:android="http://schemas.android.com/apk/res/android">` + "\n")
+
+	// Always include INTERNET; add declared permissions
+	internetIncluded := false
+	if prog != nil {
+		for _, perm := range prog.Permissions {
+			if perm == "android.permission.INTERNET" {
+				internetIncluded = true
+			}
+			sb.WriteString(fmt.Sprintf("    <uses-permission android:name=%q />\n", perm))
+		}
+	}
+	if !internetIncluded {
+		sb.WriteString("    <uses-permission android:name=\"android.permission.INTERNET\" />\n")
+	}
+
+	sb.WriteString(fmt.Sprintf(
+		"    <application android:extractNativeLibs=\"true\" android:theme=%q android:label=%q android:allowBackup=\"true\" android:supportsRtl=\"true\">\n",
+		cfg.Theme, cfg.Name,
+	))
+
+	// Main activity
+	sb.WriteString(fmt.Sprintf(`        <activity android:name=".MainActivity" android:exported="true" android:screenOrientation=%q>`+"\n", cfg.Orientation))
+	sb.WriteString("            <intent-filter>\n")
+	sb.WriteString("                <action android:name=\"android.intent.action.MAIN\" />\n")
+	sb.WriteString("                <category android:name=\"android.intent.category.LAUNCHER\" />\n")
+	sb.WriteString("            </intent-filter>\n")
+	sb.WriteString("        </activity>\n")
+
+	// Broadcast receivers
+	if prog != nil {
+		for _, recv := range prog.Receivers {
+			exported := "false"
+			if recv.Exported {
+				exported = "true"
+			}
+			sb.WriteString(fmt.Sprintf("        <receiver android:name=\".Go2APKBroadcastReceiver\" android:exported=%q>\n", exported))
+			sb.WriteString("            <intent-filter>\n")
+			sb.WriteString(fmt.Sprintf("                <action android:name=%q />\n", recv.Action))
+			sb.WriteString("            </intent-filter>\n")
+			sb.WriteString("        </receiver>\n")
+		}
+	}
+
+	sb.WriteString("    </application>\n")
+	sb.WriteString("</manifest>\n")
+	return sb.String()
 }
 
 // RenderBuildGradle creates a starter Android application Gradle file.

@@ -11,10 +11,13 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// ExtractUI parses the AST for ui.Run and extracts the widget tree.
-func ExtractUI(pkgs []*packages.Package) (ir.Widget, map[string]string) {
+// ExtractUI parses the AST for ui.Run and extracts the widget tree, permissions,
+// and broadcast receiver declarations.
+func ExtractUI(pkgs []*packages.Package) (ir.Widget, map[string]string, []string, []ir.BroadcastReceiverDecl) {
 	events := make(map[string]string)
 	var rootWidget ir.Widget
+	var permissions []string
+	var receivers []ir.BroadcastReceiverDecl
 
 	for _, pkg := range pkgs {
 		if pkg.Name != "main" {
@@ -22,7 +25,6 @@ func ExtractUI(pkgs []*packages.Package) (ir.Widget, map[string]string) {
 		}
 		for _, file := range pkg.Syntax {
 			ast.Inspect(file, func(n ast.Node) bool {
-				// Look for ui.Run
 				call, ok := n.(*ast.CallExpr)
 				if !ok {
 					return true
@@ -34,21 +36,55 @@ func ExtractUI(pkgs []*packages.Package) (ir.Widget, map[string]string) {
 				}
 
 				id, ok := sel.X.(*ast.Ident)
-				if !ok || id.Name != "ui" || sel.Sel.Name != "Run" {
+				if !ok || id.Name != "ui" {
 					return true
 				}
 
-				fmt.Println("Found ui.Run call!")
+				switch sel.Sel.Name {
+				case "Run":
+					fmt.Println("Found ui.Run call!")
+					if len(call.Args) > 0 {
+						rootWidget = parseWidget(call.Args[0], events)
+					}
+					return false
 
-				// Found ui.Run, parse the first argument
-				if len(call.Args) > 0 {
-					rootWidget = parseWidget(call.Args[0], events)
+				case "Permission":
+					// ui.Permission("android.permission.XYZ")
+					if len(call.Args) == 1 {
+						if perm := stringLit(call.Args[0]); perm != "" {
+							permissions = append(permissions, perm)
+						}
+					}
+
+				case "BroadcastReceiver":
+					// ui.BroadcastReceiver(action, eventName, handler)
+					if len(call.Args) >= 2 {
+						action := stringLit(call.Args[0])
+						eventName := stringLit(call.Args[1])
+						if action != "" && eventName != "" {
+							receivers = append(receivers, ir.BroadcastReceiverDecl{
+								Name:     eventName,
+								Action:   action,
+								Exported: false,
+							})
+						}
+					}
 				}
-				return false
+
+				return true
 			})
 		}
 	}
-	return rootWidget, events
+	return rootWidget, events, permissions, receivers
+}
+
+// stringLit extracts the string value from a basic string literal AST node.
+func stringLit(expr ast.Expr) string {
+	bl, ok := expr.(*ast.BasicLit)
+	if !ok || bl.Kind != token.STRING {
+		return ""
+	}
+	return strings.Trim(bl.Value, "\"")
 }
 
 func parseStyle(expr ast.Expr) ir.Style {

@@ -11,6 +11,25 @@ type Program struct {
 	UI Widget
 	// Events maps UI event handlers to Go function names
 	Events map[string]string // e.g., "button_1_onclick" -> "HandleClick"
+
+	// Permissions lists Android permissions required by this app.
+	// e.g., ["android.permission.CAMERA", "android.permission.INTERNET"]
+	Permissions []string
+
+	// Receivers lists broadcast receiver registrations declared via ui.BroadcastReceiver.
+	Receivers []BroadcastReceiverDecl
+}
+
+// BroadcastReceiverDecl holds the manifest + runtime info for a broadcast receiver.
+type BroadcastReceiverDecl struct {
+	// Name is the Go-side event name fired when this broadcast is received
+	// e.g. "on_battery_low" → registered via ui.RegisterEvent
+	Name string
+	// Action is the Android intent action string
+	// e.g. "android.intent.action.BATTERY_LOW"
+	Action string
+	// Exported controls android:exported in the manifest
+	Exported bool
 }
 
 // Package represents a parsed Go package.

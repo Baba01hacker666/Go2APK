@@ -50,6 +50,20 @@ func prepareDynamicFiles(root string, cfg config.Config) error {
 		if err := os.WriteFile(filepath.Join(javaDir, "NativeBridge.java"), []byte(android.RenderNativeBridge(cfg)), 0o644); err != nil {
 			return err
 		}
+		// Generate broadcast receiver class if needed
+		if receiverCode := android.RenderBroadcastReceiver(cfg, prog.Receivers); receiverCode != "" {
+			if err := os.WriteFile(filepath.Join(javaDir, "Go2APKBroadcastReceiver.java"), []byte(receiverCode), 0o644); err != nil {
+				return err
+			}
+		}
+		// Regenerate manifest to inject permissions and broadcast receivers
+		manifestDir := filepath.Join(root, "android", "app", "src", "main")
+		if err := os.MkdirAll(manifestDir, 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(manifestDir, "AndroidManifest.xml"), []byte(android.RenderManifest(cfg, prog)), 0o644); err != nil {
+			return err
+		}
 		if err := os.WriteFile(filepath.Join(root, cfg.Source, "events_gen.go"), []byte(android.RenderEventsGen(prog)), 0o644); err != nil {
 			return err
 		}

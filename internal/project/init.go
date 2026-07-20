@@ -31,7 +31,7 @@ include ':app'
 `,
 		"android/app/build.gradle":                 android.RenderBuildGradle(cfg),
 		"android/app/proguard-rules.pro":           android.RenderProguardRules(),
-		"android/app/src/main/AndroidManifest.xml": android.RenderManifest(cfg),
+		"android/app/src/main/AndroidManifest.xml": android.RenderManifest(cfg, nil),
 		activityPath:                                 android.RenderDynamicMainActivity(cfg, nil),
 		nativeBridgePath:                             android.RenderNativeBridge(cfg),
 		"android/app/src/main/assets/.keep":          "",
@@ -42,7 +42,7 @@ set -euo pipefail
 
 ROOT_DIR="$(pwd)"
 OUT_DIR="$ROOT_DIR/android/app/src/main/jniLibs"
-SRC_DIR="native/app"
+SRC_DIR="${1:-examples/demo}"
 LIB_NAME="libgo2apkapp.so"
 
 HOST_OS=$(uname -s | tr '[:upper:]' '[:lower:]')

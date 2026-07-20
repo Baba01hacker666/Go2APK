@@ -42,9 +42,11 @@ func (f *Frontend) BuildIR(dir string) (*ir.Program, error) {
 		prog.Packages[pkg.PkgPath] = irPkg
 	}
 
-	uiTree, events := ExtractUI(pkgs)
+	uiTree, events, permissions, receivers := ExtractUI(pkgs)
 	prog.UI = uiTree
 	prog.Events = events
+	prog.Permissions = permissions
+	prog.Receivers = receivers
 
 	return prog, nil
 }

@@ -8,11 +8,15 @@ import (
 	"github.com/Baba01hacker666/Go2APK/ir"
 )
 
-// RenderNativeBridge creates the generic Java JNI bridge.
+// RenderNativeBridge creates the Java JNI bridge class with all required methods.
 func RenderNativeBridge(cfg config.Config) string {
 	return fmt.Sprintf(`package %s;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
+import android.Manifest;
+import android.content.pm.PackageManager;
 
 final class NativeBridge {
     private static final String LIBRARY_NAME = "go2apkapp";
@@ -21,33 +25,120 @@ final class NativeBridge {
         System.loadLibrary(LIBRARY_NAME);
     }
 
-    private NativeBridge() {
-    }
+    private NativeBridge() {}
+
+    // ── JNI entry points (called from Go) ────────────────────────────────────
+
+    private static native void sendEventToGo(String eventName);
+    private static native void onPermissionResult(String permission, boolean granted);
+
+    // ── Java→Go dispatch ─────────────────────────────────────────────────────
 
     static void sendEvent(String eventName) {
         sendEventToGo(eventName);
     }
 
-    private static native void sendEventToGo(String eventName);
+    // ── Activity & Context helpers ────────────────────────────────────────────
+
+    private static Activity currentActivity;
 
     public static void setActivity(Activity activity) {
         currentActivity = activity;
     }
 
-    private static Activity currentActivity;
+    // ── UI Updates ────────────────────────────────────────────────────────────
 
+    /** Called from Go to update any widget text on the UI thread. */
     public static void updateText(String id, String text) {
         if (currentActivity instanceof MainActivity) {
-            currentActivity.runOnUiThread(() -> {
-                ((MainActivity) currentActivity).updateWidgetText(id, text);
-            });
+            currentActivity.runOnUiThread(() ->
+                ((MainActivity) currentActivity).updateWidgetText(id, text));
         }
+    }
+
+    /** Called from Go to read the current text of a widget. */
+    public static String getText(String id) {
+        if (currentActivity instanceof MainActivity) {
+            return ((MainActivity) currentActivity).getWidgetText(id);
+        }
+        return "";
+    }
+
+    // ── Intents ───────────────────────────────────────────────────────────────
+
+    /**
+     * Called from Go to start an Android activity.
+     * @param action  Intent action string (e.g. "android.intent.action.VIEW")
+     * @param data    URI data string, or "" if none
+     * @param pkg     explicit package name for the target app, or "" if implicit
+     */
+    public static void startActivity(String action, String data, String pkg) {
+        if (currentActivity == null) return;
+        Intent intent = new Intent(action);
+        if (!data.isEmpty()) intent.setData(Uri.parse(data));
+        if (!pkg.isEmpty())  intent.setPackage(pkg);
+        currentActivity.startActivity(intent);
+    }
+
+    // ── Broadcasts ────────────────────────────────────────────────────────────
+
+    /** Called from Go to send a local broadcast. */
+    public static void sendBroadcast(String action) {
+        if (currentActivity == null) return;
+        Intent intent = new Intent(action);
+        currentActivity.sendBroadcast(intent);
+    }
+
+    // ── Permissions ───────────────────────────────────────────────────────────
+
+    private static final int PERMISSION_REQUEST_CODE = 1001;
+
+    /**
+     * Called from Go to request a dangerous runtime permission.
+     * The result is delivered back via onPermissionResult on the Go side.
+     */
+    public static void requestPermission(String permission) {
+        if (currentActivity == null) return;
+        if (currentActivity.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
+            onPermissionResult(permission, true);
+            return;
+        }
+        currentActivity.requestPermissions(new String[]{permission}, PERMISSION_REQUEST_CODE);
+    }
+
+    /** Called by MainActivity.onRequestPermissionsResult to relay the result to Go. */
+    static void deliverPermissionResult(String permission, boolean granted) {
+        onPermissionResult(permission, granted);
     }
 }
 `, cfg.Package)
 }
 
-// RenderDynamicMainActivity creates a Java Activity by traversing the IR widget tree.
+// RenderBroadcastReceiver generates a Java BroadcastReceiver that routes
+// received intents back to Go through NativeBridge.sendEvent.
+func RenderBroadcastReceiver(cfg config.Config, receivers []ir.BroadcastReceiverDecl) string {
+	if len(receivers) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("package %s;\n\n", cfg.Package))
+	sb.WriteString("import android.content.BroadcastReceiver;\n")
+	sb.WriteString("import android.content.Context;\n")
+	sb.WriteString("import android.content.Intent;\n\n")
+	sb.WriteString("public class Go2APKBroadcastReceiver extends BroadcastReceiver {\n")
+	sb.WriteString("    @Override\n")
+	sb.WriteString("    public void onReceive(Context context, Intent intent) {\n")
+	sb.WriteString("        String action = intent.getAction();\n")
+	sb.WriteString("        if (action == null) return;\n")
+	for _, recv := range receivers {
+		sb.WriteString(fmt.Sprintf("        if (action.equals(%q)) { NativeBridge.sendEvent(%q); return; }\n",
+			recv.Action, recv.Name))
+	}
+	sb.WriteString("    }\n")
+	sb.WriteString("}\n")
+	return sb.String()
+}
+
 func RenderDynamicMainActivity(cfg config.Config, prog *ir.Program) string {
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf(`package %s;
@@ -100,6 +191,23 @@ public class MainActivity extends Activity {
 		writeUpdateWidgetCases(&builder, prog.UI)
 	}
 	builder.WriteString(`    }
+
+    public String getWidgetText(String id) {
+`)
+	if prog != nil && prog.UI != nil {
+		writeGetWidgetCases(&builder, prog.UI)
+	}
+	builder.WriteString(`        return "";
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        for (int i = 0; i < permissions.length; i++) {
+            boolean granted = (grantResults[i] == android.content.pm.PackageManager.PERMISSION_GRANTED);
+            NativeBridge.deliverPermissionResult(permissions[i], granted);
+        }
+    }
 }
 `)
 	return builder.String()
@@ -126,6 +234,27 @@ func writeUpdateWidgetCases(b *strings.Builder, w ir.Widget) {
 	case ir.TextFieldWidget:
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) this.%s.setText(text); return; }\n", v.ID, v.ID, v.ID))
+		}
+	}
+}
+
+func writeGetWidgetCases(b *strings.Builder, w ir.Widget) {
+	switch v := w.(type) {
+	case ir.ColumnWidget:
+		for _, child := range v.Children {
+			writeGetWidgetCases(b, child)
+		}
+	case ir.RowWidget:
+		for _, child := range v.Children {
+			writeGetWidgetCases(b, child)
+		}
+	case ir.TextViewWidget:
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\") && this.%s != null) return this.%s.getText().toString();\n", v.ID, v.ID, v.ID))
+		}
+	case ir.TextFieldWidget:
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\") && this.%s != null) return this.%s.getText().toString();\n", v.ID, v.ID, v.ID))
 		}
 	}
 }
