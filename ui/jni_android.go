@@ -53,8 +53,12 @@ static void CallUpdateText(JNIEnv* env, jclass clazz, const char* id, const char
 import "C"
 import "unsafe"
 
+// globalVM stores the Java VM pointer for background thread attachment.
 var globalVM *C.JavaVM
 var globalBridgeClass C.jclass
+
+// currentEnv holds the JNIEnv for the currently executing UI callback.
+var currentEnv *C.JNIEnv
 
 //export JNI_OnLoad
 func JNI_OnLoad(vm *C.JavaVM, reserved unsafe.Pointer) C.jint {
@@ -64,6 +68,9 @@ func JNI_OnLoad(vm *C.JavaVM, reserved unsafe.Pointer) C.jint {
 
 //export Java_com_example_go2apkapp_NativeBridge_sendEventToGo
 func Java_com_example_go2apkapp_NativeBridge_sendEventToGo(env *C.JNIEnv, clazz C.jclass, eventName C.jstring) {
+	currentEnv = env
+	defer func() { currentEnv = nil }()
+
 	if globalVM == nil {
 		globalVM = C.ExtractJavaVM(env)
 	}
@@ -87,10 +94,17 @@ func javaString(env *C.JNIEnv, str C.jstring) string {
 }
 
 func updateTextNative(id string, text string) {
-	if globalVM == nil || globalBridgeClass == 0 {
+	if globalBridgeClass == 0 {
 		return
 	}
-	env := C.GetJNIEnv(globalVM)
+
+	env := currentEnv
+	if env == nil {
+		if globalVM == nil {
+			return
+		}
+		env = C.GetJNIEnv(globalVM)
+	}
 	if env == nil {
 		return
 	}
