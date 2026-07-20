@@ -452,6 +452,15 @@ func applyCSS(b *strings.Builder, viewVar string, css string) {
 		return
 	}
 	rules := strings.Split(css, ";")
+
+	hasBackground := false
+	bgColor := ""
+	hasRadius := false
+	radius := ""
+	hasBorder := false
+	borderWidth := ""
+	borderColor := ""
+
 	for _, rule := range rules {
 		rule = strings.TrimSpace(rule)
 		if rule == "" {
@@ -466,24 +475,31 @@ func applyCSS(b *strings.Builder, viewVar string, css string) {
 
 		switch prop {
 		case "background-color":
-			b.WriteString(fmt.Sprintf("        %s.setBackgroundColor(Color.parseColor(\"%s\"));\n", viewVar, val))
+			hasBackground = true
+			bgColor = val
+		case "border-radius":
+			hasRadius = true
+			radius = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(val, "px"), "dp"), "sp")
+		case "border":
+			// format: "1px solid black" or similar
+			parts := strings.Split(val, " ")
+			if len(parts) >= 3 {
+				hasBorder = true
+				borderWidth = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(parts[0], "px"), "dp"), "sp")
+				borderColor = parts[2]
+			}
+		case "box-shadow", "elevation":
+			// We only parse elevation for Android natively
+			val = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(val, "px"), "dp"), "sp")
+			b.WriteString(fmt.Sprintf("        %s.setElevation(Float.parseFloat(\"%s\"));\n", viewVar, val))
 		case "color":
 			b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setTextColor(Color.parseColor(\"%s\"));\n", viewVar, viewVar, val))
 		case "font-size":
-			size := strings.TrimSuffix(val, "px")
-			size = strings.TrimSuffix(size, "dp")
-			size = strings.TrimSuffix(size, "sp")
+			size := strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(val, "px"), "dp"), "sp")
 			b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setTextSize(Float.parseFloat(\"%s\"));\n", viewVar, viewVar, size))
 		case "padding":
-			pad := strings.TrimSuffix(val, "px")
+			pad := strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(val, "px"), "dp"), "sp")
 			b.WriteString(fmt.Sprintf("        %s.setPadding((int)Float.parseFloat(\"%s\"), (int)Float.parseFloat(\"%s\"), (int)Float.parseFloat(\"%s\"), (int)Float.parseFloat(\"%s\"));\n", viewVar, pad, pad, pad, pad))
-		case "border-radius":
-			rad := strings.TrimSuffix(val, "px")
-			b.WriteString(fmt.Sprintf("        {\n"))
-			b.WriteString(fmt.Sprintf("            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();\n"))
-			b.WriteString(fmt.Sprintf("            gd.setCornerRadius(Float.parseFloat(\"%s\"));\n", rad))
-			b.WriteString(fmt.Sprintf("            %s.setBackground(gd);\n", viewVar))
-			b.WriteString(fmt.Sprintf("        }\n"))
 		case "text-align":
 			var gravity string
 			switch val {
@@ -504,6 +520,23 @@ func applyCSS(b *strings.Builder, viewVar string, css string) {
 		case "opacity":
 			b.WriteString(fmt.Sprintf("        %s.setAlpha(Float.parseFloat(\"%s\"));\n", viewVar, val))
 		}
+	}
+
+	// Apply background drawable if needed
+	if hasBackground || hasRadius || hasBorder {
+		b.WriteString("        {\n")
+		b.WriteString("            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();\n")
+		if hasBackground {
+			b.WriteString(fmt.Sprintf("            gd.setColor(Color.parseColor(\"%s\"));\n", bgColor))
+		}
+		if hasRadius {
+			b.WriteString(fmt.Sprintf("            gd.setCornerRadius(Float.parseFloat(\"%s\"));\n", radius))
+		}
+		if hasBorder {
+			b.WriteString(fmt.Sprintf("            gd.setStroke((int)Float.parseFloat(\"%s\"), Color.parseColor(\"%s\"));\n", borderWidth, borderColor))
+		}
+		b.WriteString(fmt.Sprintf("            %s.setBackground(gd);\n", viewVar))
+		b.WriteString("        }\n")
 	}
 }
 
@@ -622,6 +655,62 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		b.WriteString(fmt.Sprintf("        %s.setVideoURI(Uri.parse(\"%s\"));\n", viewVar, v.Src))
 		b.WriteString(fmt.Sprintf("        %s.start();\n", viewVar))
 		applyStyle(b, viewVar, v.Style, -1, -2, 0)
+		applyCSS(b, viewVar, v.CSS)
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
+		}
+		if parentVar != "" {
+			b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
+		}
+		return viewVar
+	case ir.ScrollViewWidget:
+		b.WriteString(fmt.Sprintf("        ScrollView %s = new ScrollView(this);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.setFillViewport(true);\n", viewVar))
+		applyStyle(b, viewVar, v.Style, -1, -1, 0)
+		applyCSS(b, viewVar, v.CSS)
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
+		}
+		if parentVar != "" {
+			b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
+		}
+		for _, child := range v.Children {
+			buildView(b, child, viewVar, counter)
+		}
+		return viewVar
+	case ir.CardViewWidget:
+		b.WriteString(fmt.Sprintf("        androidx.cardview.widget.CardView %s = new androidx.cardview.widget.CardView(this);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.setRadius(8f);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.setCardElevation(4f);\n", viewVar))
+		applyStyle(b, viewVar, v.Style, -1, -2, 0)
+		applyCSS(b, viewVar, v.CSS)
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
+		}
+		if parentVar != "" {
+			b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
+		}
+		for _, child := range v.Children {
+			buildView(b, child, viewVar, counter)
+		}
+		return viewVar
+	case ir.ProgressBarWidget:
+		b.WriteString(fmt.Sprintf("        ProgressBar %s = new ProgressBar(this);\n", viewVar))
+		applyStyle(b, viewVar, v.Style, -2, -2, 0)
+		applyCSS(b, viewVar, v.CSS)
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
+		}
+		if parentVar != "" {
+			b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
+		}
+		return viewVar
+	case ir.SwitchWidget:
+		b.WriteString(fmt.Sprintf("        Switch %s = new Switch(this);\n", viewVar))
+		if v.Checked {
+			b.WriteString(fmt.Sprintf("        %s.setChecked(true);\n", viewVar))
+		}
+		applyStyle(b, viewVar, v.Style, -2, -2, 0)
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))

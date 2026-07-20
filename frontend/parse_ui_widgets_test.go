@@ -81,3 +81,38 @@ func TestParseCompositeAudio(t *testing.T) {
 		t.Errorf("Expected AutoPlay to be true, got false")
 	}
 }
+
+func TestParseCompositeScrollView(t *testing.T) {
+	comp := &ast.CompositeLit{
+		Type: &ast.SelectorExpr{Sel: &ast.Ident{Name: "ScrollView"}},
+	}
+	events := make(map[string]string)
+	widget := parseWidget(comp, events)
+
+	_, ok := widget.(ir.ScrollViewWidget)
+	if !ok {
+		t.Fatalf("Expected ScrollViewWidget, got %T", widget)
+	}
+}
+
+func TestParseCompositeCardView(t *testing.T) {
+	comp := &ast.CompositeLit{
+		Type: &ast.SelectorExpr{Sel: &ast.Ident{Name: "CardView"}},
+		Elts: []ast.Expr{
+			&ast.KeyValueExpr{
+				Key:   &ast.Ident{Name: "CSS"},
+				Value: &ast.BasicLit{Kind: token.STRING, Value: `"box-shadow: 4px;"`},
+			},
+		},
+	}
+	events := make(map[string]string)
+	widget := parseWidget(comp, events)
+
+	cv, ok := widget.(ir.CardViewWidget)
+	if !ok {
+		t.Fatalf("Expected CardViewWidget, got %T", widget)
+	}
+	if cv.CSS != "box-shadow: 4px;" {
+		t.Errorf("Expected CSS to be parsed, got %s", cv.CSS)
+	}
+}

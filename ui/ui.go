@@ -86,6 +86,46 @@ type Video struct {
 
 func (Video) isWidget() {}
 
+// ScrollView allows scrolling its child content.
+type ScrollView struct {
+	ID       string
+	Style    Style
+	CSS      string
+	Children []Widget
+}
+
+func (ScrollView) isWidget() {}
+
+// CardView provides a Material card with elevation and rounded corners.
+type CardView struct {
+	ID       string
+	Style    Style
+	CSS      string
+	Children []Widget
+}
+
+func (CardView) isWidget() {}
+
+// ProgressBar shows a loading spinner or progress bar.
+type ProgressBar struct {
+	ID    string
+	Style Style
+	CSS   string
+}
+
+func (ProgressBar) isWidget() {}
+
+// Switch provides a toggle switch.
+type Switch struct {
+	ID        string
+	Checked   bool
+	Style     Style
+	CSS       string
+	OnChanged func(checked bool)
+}
+
+func (Switch) isWidget() {}
+
 // Run starts the application with the given root widget.
 // Note: In Go2APK, this function is statically analyzed at build time to generate
 // the Android UI layout and JNI bindings, so the actual execution on Android

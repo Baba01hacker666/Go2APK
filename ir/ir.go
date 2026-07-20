@@ -130,6 +130,7 @@ type AudioWidget struct {
 
 func (AudioWidget) WidgetType() string { return "Audio" }
 
+// VideoWidget represents an video player.
 type VideoWidget struct {
 	ID    string
 	Src   string
@@ -138,3 +139,42 @@ type VideoWidget struct {
 }
 
 func (VideoWidget) WidgetType() string { return "Video" }
+
+// ScrollViewWidget represents a scrolling container.
+type ScrollViewWidget struct {
+	ID       string
+	Style    Style
+	CSS      string
+	Children []Widget
+}
+
+func (ScrollViewWidget) WidgetType() string { return "ScrollView" }
+
+// CardViewWidget represents a material design card.
+type CardViewWidget struct {
+	ID       string
+	Style    Style
+	CSS      string
+	Children []Widget
+}
+
+func (CardViewWidget) WidgetType() string { return "CardView" }
+
+// ProgressBarWidget represents a loading indicator.
+type ProgressBarWidget struct {
+	ID    string
+	Style Style
+	CSS   string
+}
+
+func (ProgressBarWidget) WidgetType() string { return "ProgressBar" }
+
+// SwitchWidget represents a toggle switch.
+type SwitchWidget struct {
+	ID      string
+	Checked bool
+	Style   Style
+	CSS     string
+}
+
+func (SwitchWidget) WidgetType() string { return "Switch" }

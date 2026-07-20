@@ -260,6 +260,32 @@ func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 		vid := ir.VideoWidget{ID: id, Style: style, CSS: css}
 		vid.Src, _ = fields["Src"].(string)
 		return vid
+	case "ScrollView":
+		sv := ir.ScrollViewWidget{ID: id, Style: style, CSS: css}
+		if children, ok := fields["Children"].([]ir.Widget); ok {
+			sv.Children = children
+		}
+		return sv
+	case "CardView":
+		cv := ir.CardViewWidget{ID: id, Style: style, CSS: css}
+		if children, ok := fields["Children"].([]ir.Widget); ok {
+			cv.Children = children
+		}
+		return cv
+	case "ProgressBar":
+		pb := ir.ProgressBarWidget{ID: id, Style: style, CSS: css}
+		return pb
+	case "Switch":
+		sw := ir.SwitchWidget{ID: id, Style: style, CSS: css}
+		if checked, ok := fields["Checked"].(bool); ok {
+			sw.Checked = checked
+		}
+		if onChanged, ok := fields["OnChanged"].(string); ok {
+			if id != "" {
+				events[id+"_onchanged"] = onChanged
+			}
+		}
+		return sw
 	}
 	return nil
 }

@@ -138,6 +138,33 @@ func renderWidgetHTML(sb *strings.Builder, w ir.Widget) {
 	case ir.VideoWidget:
 		inlineCSS := generateInlineCSS(v.Style, v.CSS, "video")
 		sb.WriteString(fmt.Sprintf("    <video src=%q style=%q controls></video>\n", v.Src, inlineCSS))
+	case ir.ScrollViewWidget:
+		inlineCSS := generateInlineCSS(v.Style, v.CSS, "scrollview")
+		// Give it a generic overflow-y: auto since it's a ScrollView
+		sb.WriteString(fmt.Sprintf("    <div class=\"go2apk-scrollview\" style=\"overflow-y: auto; %s\">\n", inlineCSS))
+		for _, child := range v.Children {
+			renderWidgetHTML(sb, child)
+		}
+		sb.WriteString("    </div>\n")
+	case ir.CardViewWidget:
+		inlineCSS := generateInlineCSS(v.Style, v.CSS, "cardview")
+		// Mimic material card styling
+		sb.WriteString(fmt.Sprintf("    <div class=\"go2apk-cardview\" style=\"box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 8px; %s\">\n", inlineCSS))
+		for _, child := range v.Children {
+			renderWidgetHTML(sb, child)
+		}
+		sb.WriteString("    </div>\n")
+	case ir.ProgressBarWidget:
+		inlineCSS := generateInlineCSS(v.Style, v.CSS, "progressbar")
+		// Just a simple HTML5 indeterminate progress element equivalent (a spinner or progress bar)
+		sb.WriteString(fmt.Sprintf("    <progress class=\"go2apk-progressbar\" style=%q></progress>\n", inlineCSS))
+	case ir.SwitchWidget:
+		inlineCSS := generateInlineCSS(v.Style, v.CSS, "switch")
+		checkedAttr := ""
+		if v.Checked {
+			checkedAttr = "checked"
+		}
+		sb.WriteString(fmt.Sprintf("    <input type=\"checkbox\" class=\"go2apk-switch\" %s style=%q>\n", checkedAttr, inlineCSS))
 	}
 }
 
