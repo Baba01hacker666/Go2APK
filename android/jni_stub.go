@@ -16,3 +16,5 @@ func startActivityForResultNative(intent Intent, onResult func(resultCode int, d
 func sendBroadcastNative(action string) {}
 
 func sendBroadcastWithExtrasNative(action string, extras map[string]string) {}
+
+func animateNative(id string, property string, to float32, durationMs int) {}
