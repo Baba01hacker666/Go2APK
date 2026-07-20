@@ -22,12 +22,12 @@ func ExtractUI(pkgs []*packages.Package) (ir.Widget, map[string]string) {
 				if !ok {
 					return true
 				}
-				
+
 				sel, ok := call.Fun.(*ast.SelectorExpr)
 				if !ok {
 					return true
 				}
-				
+
 				id, ok := sel.X.(*ast.Ident)
 				if !ok || id.Name != "ui" || sel.Sel.Name != "Run" {
 					return true
@@ -51,7 +51,7 @@ func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 	if !ok {
 		return nil
 	}
-	
+
 	var typeName string
 	switch t := compLit.Type.(type) {
 	case *ast.SelectorExpr:
@@ -59,19 +59,21 @@ func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 	case *ast.Ident:
 		typeName = t.Name
 	}
-	
+
 	switch typeName {
 	case "Column":
 		fmt.Println("Found Column")
 		col := ir.ColumnWidget{}
 		for _, elt := range compLit.Elts {
 			kv, ok := elt.(*ast.KeyValueExpr)
-			if !ok { continue }
+			if !ok {
+				continue
+			}
 			key := kv.Key.(*ast.Ident).Name
-			
+
 			if key == "ID" {
 				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					col.ID = bl.Value[1:len(bl.Value)-1]
+					col.ID = bl.Value[1 : len(bl.Value)-1]
 				}
 			} else if key == "Children" {
 				if cl, ok := kv.Value.(*ast.CompositeLit); ok {
@@ -89,12 +91,14 @@ func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 		row := ir.RowWidget{}
 		for _, elt := range compLit.Elts {
 			kv, ok := elt.(*ast.KeyValueExpr)
-			if !ok { continue }
+			if !ok {
+				continue
+			}
 			key := kv.Key.(*ast.Ident).Name
-			
+
 			if key == "ID" {
 				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					row.ID = bl.Value[1:len(bl.Value)-1]
+					row.ID = bl.Value[1 : len(bl.Value)-1]
 				}
 			} else if key == "Children" {
 				if cl, ok := kv.Value.(*ast.CompositeLit); ok {
@@ -112,15 +116,17 @@ func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 		tv := ir.TextViewWidget{}
 		for _, elt := range compLit.Elts {
 			kv, ok := elt.(*ast.KeyValueExpr)
-			if !ok { continue }
+			if !ok {
+				continue
+			}
 			key := kv.Key.(*ast.Ident).Name
 			if key == "ID" {
 				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					tv.ID = bl.Value[1:len(bl.Value)-1]
+					tv.ID = bl.Value[1 : len(bl.Value)-1]
 				}
 			} else if key == "Text" {
 				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					tv.Text = bl.Value[1:len(bl.Value)-1]
+					tv.Text = bl.Value[1 : len(bl.Value)-1]
 				}
 			}
 		}
@@ -129,15 +135,17 @@ func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 		btn := ir.ButtonWidget{}
 		for _, elt := range compLit.Elts {
 			kv, ok := elt.(*ast.KeyValueExpr)
-			if !ok { continue }
+			if !ok {
+				continue
+			}
 			key := kv.Key.(*ast.Ident).Name
 			if key == "ID" {
 				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					btn.ID = bl.Value[1:len(bl.Value)-1]
+					btn.ID = bl.Value[1 : len(bl.Value)-1]
 				}
 			} else if key == "Text" {
 				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					btn.Text = bl.Value[1:len(bl.Value)-1]
+					btn.Text = bl.Value[1 : len(bl.Value)-1]
 				}
 			} else if key == "OnClick" {
 				if id, ok := kv.Value.(*ast.Ident); ok {
@@ -153,15 +161,17 @@ func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 		tf := ir.TextFieldWidget{}
 		for _, elt := range compLit.Elts {
 			kv, ok := elt.(*ast.KeyValueExpr)
-			if !ok { continue }
+			if !ok {
+				continue
+			}
 			key := kv.Key.(*ast.Ident).Name
 			if key == "ID" {
 				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					tf.ID = bl.Value[1:len(bl.Value)-1]
+					tf.ID = bl.Value[1 : len(bl.Value)-1]
 				}
 			} else if key == "Placeholder" {
 				if bl, ok := kv.Value.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-					tf.Placeholder = bl.Value[1:len(bl.Value)-1]
+					tf.Placeholder = bl.Value[1 : len(bl.Value)-1]
 				}
 			} else if key == "OnChanged" {
 				if id, ok := kv.Value.(*ast.Ident); ok {

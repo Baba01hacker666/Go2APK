@@ -34,7 +34,7 @@ func (f *Frontend) BuildIR(dir string) (*ir.Program, error) {
 			Types: make(map[string]*ir.Type),
 			Funcs: make(map[string]*ir.Function),
 		}
-		
+
 		fmt.Printf("Package %s has %d syntax trees\n", pkg.Name, len(pkg.Syntax))
 
 		// TODO: Traverse AST/Types to populate IR structs and detect entrypoint

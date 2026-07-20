@@ -164,7 +164,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string) string {
 		}
 		return viewVar
 	}
-	
+
 	// Default fallback
 	b.WriteString(fmt.Sprintf("        View %s = new View(this);\n", viewVar))
 	if parentVar != "" && parentVar != "rootView" {
