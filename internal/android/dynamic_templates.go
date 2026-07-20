@@ -121,8 +121,9 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string) string {
 	case ir.ColumnWidget:
 		b.WriteString(fmt.Sprintf("        LinearLayout %s = new LinearLayout(this);\n", viewVar))
 		b.WriteString(fmt.Sprintf("        %s.setOrientation(LinearLayout.VERTICAL);\n", viewVar))
-		b.WriteString(fmt.Sprintf("        %s.setGravity(Gravity.CENTER_HORIZONTAL);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.setGravity(Gravity.CENTER);\n", viewVar))
 		b.WriteString(fmt.Sprintf("        %s.setPadding(24, 24, 24, 24);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));\n", viewVar))
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
 		}
@@ -136,10 +137,28 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string) string {
 			buildView(b, child, viewVar)
 		}
 		return viewVar
+	case ir.RowWidget:
+		b.WriteString(fmt.Sprintf("        LinearLayout %s = new LinearLayout(this);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.setOrientation(LinearLayout.HORIZONTAL);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.setGravity(Gravity.CENTER);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));\n", viewVar))
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
+		}
+		if parentVar != "" && parentVar != "rootView" {
+			b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
+		}
+		for _, child := range v.Children {
+			buildView(b, child, viewVar)
+		}
+		return viewVar
 	case ir.TextViewWidget:
 		b.WriteString(fmt.Sprintf("        TextView %s = new TextView(this);\n", viewVar))
 		b.WriteString(fmt.Sprintf("        %s.setText(\"%s\");\n", viewVar, v.Text))
-		b.WriteString(fmt.Sprintf("        %s.setTextSize(24);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.setTextSize(32);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.setGravity(Gravity.END);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.setPadding(16, 16, 16, 16);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));\n", viewVar))
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
 		}
@@ -150,6 +169,10 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string) string {
 	case ir.ButtonWidget:
 		b.WriteString(fmt.Sprintf("        Button %s = new Button(this);\n", viewVar))
 		b.WriteString(fmt.Sprintf("        %s.setText(\"%s\");\n", viewVar, v.Text))
+		b.WriteString(fmt.Sprintf("        %s.setTextSize(24);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        LinearLayout.LayoutParams lp_%s = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        lp_%s.setMargins(8, 8, 8, 8);\n", viewVar))
+		b.WriteString(fmt.Sprintf("        %s.setLayoutParams(lp_%s);\n", viewVar, viewVar))
 		if v.OnClickFunc != "" {
 			// Trigger JNI event
 			b.WriteString(fmt.Sprintf("        %s.setOnClickListener(v -> {\n", viewVar))
