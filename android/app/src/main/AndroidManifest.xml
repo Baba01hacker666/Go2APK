@@ -7,6 +7,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".CalculatorActivity" android:exported="false" android:screenOrientation="unspecified"></activity>
+        <activity android:name=".BasicCalculatorActivity" android:exported="false" android:screenOrientation="unspecified"></activity>
+        <activity android:name=".AdvancedCalculatorActivity" android:exported="false" android:screenOrientation="unspecified"></activity>
     </application>
 </manifest>

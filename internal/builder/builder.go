@@ -92,6 +92,19 @@ func prepareDynamicFiles(root string, cfg config.Config) error {
 	return nil
 }
 
+// Generate generates the Java code and Android bindings without compiling the APK.
+func Generate(root string) error {
+	cfg, err := loadConfig(root)
+	if err != nil {
+		return err
+	}
+	if err := prepareDynamicFiles(root, cfg); err != nil {
+		return err
+	}
+	fmt.Println("Generated Java code successfully.")
+	return nil
+}
+
 // Build validates the generated project and prepares debug APK outputs.
 func Build(root string, opts ...Options) error {
 	cfg, err := loadConfig(root)

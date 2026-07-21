@@ -38,6 +38,8 @@ func run(args []string) error {
 		return project.Init(root, force)
 	case "check":
 		return builder.Check(root)
+	case "generate":
+		return builder.Generate(root)
 	case "build":
 		return builder.Build(root, buildOptions(args[1:]))
 	case "release":
@@ -79,6 +81,7 @@ func usage() {
 Usage:
   go2apk init [--force] Generate go2apk.yaml, Android templates, and helper scripts
   go2apk check          Check declarative UI syntax and logic
+  go2apk generate       Generate Java code without running a Gradle build
   go2apk build [--obfuscate]
                          Validate inputs and run a debug Gradle build when available
   go2apk release [--obfuscate]
