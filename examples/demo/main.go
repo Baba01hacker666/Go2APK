@@ -63,6 +63,18 @@ func main() {
 					Height:          ui.MatchParent,
 				},
 				Children: []ui.Widget{
+					ui.Button{
+						ID:   "btn_back",
+						Text: "Back to Home",
+						Style: ui.Style{
+							BackgroundColor: "#F38BA8",
+							TextColor:       "#11111B",
+							TextSize:        16,
+							Margin:          8,
+							Width:           ui.MatchParent,
+						},
+						OnClick: onBack,
+					},
 					ui.TextView{
 						ID:   "display",
 						Text: "0",
@@ -140,6 +152,18 @@ func main() {
 					Height:          ui.MatchParent,
 				},
 				Children: []ui.Widget{
+					ui.Button{
+						ID:   "btn_back_adv",
+						Text: "Back to Home",
+						Style: ui.Style{
+							BackgroundColor: "#F38BA8",
+							TextColor:       "#11111B",
+							TextSize:        16,
+							Margin:          8,
+							Width:           ui.MatchParent,
+						},
+						OnClick: onBack,
+					},
 					ui.TextView{
 						ID:   "display",
 						Text: "0",
@@ -220,6 +244,10 @@ func main() {
 
 func onOpenCalc() {
 	android.Navigate("BasicCalculatorActivity")
+}
+
+func onBack() {
+	android.Navigate("MainActivity")
 }
 
 func onAdvMode() {

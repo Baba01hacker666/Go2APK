@@ -60,17 +60,19 @@ static jstring CallGetText(JNIEnv* env, jclass clazz, const char* id) {
     return result;
 }
 
-static void CallStartActivity(JNIEnv* env, jclass clazz, const char* action, const char* data, const char* pkg) {
+static void CallStartActivity(JNIEnv* env, jclass clazz, const char* action, const char* data, const char* pkg, const char* extrasJson) {
     jmethodID mid = (*env)->GetStaticMethodID(env, clazz, "startActivity",
-        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
     if (mid == NULL) return;
     jstring jAction = (*env)->NewStringUTF(env, action);
     jstring jData   = (*env)->NewStringUTF(env, data);
     jstring jPkg    = (*env)->NewStringUTF(env, pkg);
-    (*env)->CallStaticVoidMethod(env, clazz, mid, jAction, jData, jPkg);
+    jstring jExtras = (*env)->NewStringUTF(env, extrasJson);
+    (*env)->CallStaticVoidMethod(env, clazz, mid, jAction, jData, jPkg, jExtras);
     (*env)->DeleteLocalRef(env, jAction);
     (*env)->DeleteLocalRef(env, jData);
     (*env)->DeleteLocalRef(env, jPkg);
+    (*env)->DeleteLocalRef(env, jExtras);
 }
 
 static void CallSendBroadcast(JNIEnv* env, jclass clazz, const char* action) {
@@ -117,6 +119,7 @@ static void CallNavigate(JNIEnv* env, jclass clazz, const char* target) {
 */
 import "C"
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"unsafe"
@@ -266,13 +269,19 @@ func startActivityNative(intent Intent) {
 	if env == nil {
 		return
 	}
+	
+	extrasJson, _ := json.Marshal(intent.Extras)
+	
 	cAction := C.CString(intent.Action)
 	defer C.free(unsafe.Pointer(cAction))
 	cData := C.CString(intent.Data)
 	defer C.free(unsafe.Pointer(cData))
 	cPkg := C.CString(intent.Package)
 	defer C.free(unsafe.Pointer(cPkg))
-	C.CallStartActivity(env, globalBridgeClass, cAction, cData, cPkg)
+	cExtras := C.CString(string(extrasJson))
+	defer C.free(unsafe.Pointer(cExtras))
+	
+	C.CallStartActivity(env, globalBridgeClass, cAction, cData, cPkg, cExtras)
 }
 
 func startActivityForResultNative(intent Intent, onResult func(resultCode int, data map[string]string)) {
