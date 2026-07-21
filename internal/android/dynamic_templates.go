@@ -146,9 +146,14 @@ final class NativeBridge {
 
     private static void launchVpnService(String configJson) {
         if (currentActivity == null) return;
-        Intent intent = new Intent(currentActivity, Go2ApkVpnService.class);
-        intent.putExtra("config", configJson);
-        currentActivity.startService(intent);
+        try {
+            Class<?> vpnClass = Class.forName(currentActivity.getPackageName() + ".Go2ApkVpnService");
+            Intent intent = new Intent(currentActivity, vpnClass);
+            intent.putExtra("config", configJson);
+            currentActivity.startService(intent);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
 `, cfg.Package)
@@ -247,6 +252,7 @@ func RenderDynamicMainActivity(cfg config.Config, prog *ir.Program) string {
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf(`package %s;
 
+import android.content.Intent;
 import android.app.Activity;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -535,6 +541,29 @@ func applyStyle(b *strings.Builder, viewVar string, style ir.Style, defaultWidth
 	}
 	if style.BackgroundColor != "" {
 		b.WriteString(fmt.Sprintf("        %s.setBackgroundColor(Color.parseColor(\"%s\"));\n", viewVar, style.BackgroundColor))
+	}
+
+	if style.Animation.Type != "" {
+		duration := style.Animation.Duration
+		if duration == 0 {
+			duration = 300 // default duration
+		}
+		delay := style.Animation.Delay
+		b.WriteString(fmt.Sprintf("        %s.postDelayed(() -> {\n", viewVar))
+		switch style.Animation.Type {
+		case "fade_in":
+			b.WriteString(fmt.Sprintf("            %s.setAlpha(0f);\n", viewVar))
+			b.WriteString(fmt.Sprintf("            %s.animate().alpha(1f).setDuration(%d).start();\n", viewVar, duration))
+		case "slide_up":
+			b.WriteString(fmt.Sprintf("            %s.setTranslationY(100f);\n", viewVar))
+			b.WriteString(fmt.Sprintf("            %s.setAlpha(0f);\n", viewVar))
+			b.WriteString(fmt.Sprintf("            %s.animate().translationY(0f).alpha(1f).setDuration(%d).start();\n", viewVar, duration))
+		case "bounce":
+			b.WriteString(fmt.Sprintf("            %s.animate().translationYBy(-50f).setDuration(%d/2).withEndAction(() -> %s.animate().translationYBy(50f).setDuration(%d/2).start()).start();\n", viewVar, duration, viewVar, duration))
+		case "pulse":
+			b.WriteString(fmt.Sprintf("            %s.animate().scaleX(1.1f).scaleY(1.1f).setDuration(%d/2).withEndAction(() -> %s.animate().scaleX(1f).scaleY(1f).setDuration(%d/2).start()).start();\n", viewVar, duration, viewVar, duration))
+		}
+		b.WriteString(fmt.Sprintf("        }, %d);\n", delay))
 	}
 }
 

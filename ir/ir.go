@@ -58,6 +58,13 @@ type Widget interface {
 	WidgetType() string
 }
 
+type Animation struct {
+	Type     string
+	Duration int
+	Delay    int
+	Loop     bool
+}
+
 type Style struct {
 	BackgroundColor string
 	TextColor       string
@@ -67,6 +74,7 @@ type Style struct {
 	Width           int
 	Height          int
 	Weight          float32
+	Animation       Animation
 }
 
 type ColumnWidget struct {

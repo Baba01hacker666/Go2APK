@@ -15,7 +15,7 @@ func Command(root string) (string, []string) {
 	if _, err := os.Stat(windowsWrapper); err == nil {
 		return windowsWrapper, nil
 	}
-	
+
 	// Fallback to downloaded Gradle
 	if bin, err := EnsureGradle(root); err == nil {
 		return bin, nil

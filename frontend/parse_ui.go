@@ -155,9 +155,39 @@ func parseStyle(expr ast.Expr) ir.Style {
 					}
 				}
 			}
+		} else if comp, ok := kv.Value.(*ast.CompositeLit); ok {
+			if key == "Animation" {
+				style.Animation = parseAnimation(comp)
+			}
 		}
 	}
 	return style
+}
+
+func parseAnimation(compLit *ast.CompositeLit) ir.Animation {
+	anim := ir.Animation{}
+	for _, elt := range compLit.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+		key := kv.Key.(*ast.Ident).Name
+		if bl, ok := kv.Value.(*ast.BasicLit); ok {
+			switch key {
+			case "Type":
+				anim.Type = strings.Trim(bl.Value, "\"")
+			case "Duration":
+				anim.Duration, _ = strconv.Atoi(bl.Value)
+			case "Delay":
+				anim.Delay, _ = strconv.Atoi(bl.Value)
+			}
+		} else if id, ok := kv.Value.(*ast.Ident); ok {
+			if key == "Loop" {
+				anim.Loop = (id.Name == "true")
+			}
+		}
+	}
+	return anim
 }
 
 func resolveString(expr ast.Expr) (string, bool) {
