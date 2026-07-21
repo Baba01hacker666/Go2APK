@@ -287,6 +287,9 @@ import android.widget.TextView;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.VideoView;
+import android.widget.ScrollView;
+import android.widget.ProgressBar;
+import android.widget.Switch;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.graphics.Bitmap;
@@ -773,6 +776,15 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		applyStyle(b, viewVar, v.Style, -1, -2, 0)
 		applyTextStyle(b, viewVar, v.Style, 24)
 		applyCSS(b, viewVar, v.CSS)
+		if v.ID != "" && v.OnChangedFunc != "" {
+			b.WriteString(fmt.Sprintf("        %s.addTextChangedListener(new android.text.TextWatcher() {\n", viewVar))
+			b.WriteString(fmt.Sprintf("            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}\n"))
+			b.WriteString(fmt.Sprintf("            public void onTextChanged(CharSequence s, int start, int before, int count) {}\n"))
+			b.WriteString(fmt.Sprintf("            public void afterTextChanged(android.text.Editable s) {\n"))
+			b.WriteString(fmt.Sprintf("                NativeBridge.sendEvent(\"%s_onchanged\");\n", v.ID))
+			b.WriteString(fmt.Sprintf("            }\n"))
+			b.WriteString(fmt.Sprintf("        });\n"))
+		}
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
 		}
@@ -900,6 +912,11 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		}
 		applyStyle(b, viewVar, v.Style, -2, -2, 0)
 		applyCSS(b, viewVar, v.CSS)
+		if v.ID != "" && v.OnChangedFunc != "" {
+			b.WriteString(fmt.Sprintf("        %s.setOnCheckedChangeListener((buttonView, isChecked) -> {\n", viewVar))
+			b.WriteString(fmt.Sprintf("            NativeBridge.sendEvent(\"%s_onchanged\");\n", v.ID))
+			b.WriteString(fmt.Sprintf("        });\n"))
+		}
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
 		}

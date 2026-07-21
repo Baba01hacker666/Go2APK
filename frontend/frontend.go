@@ -42,6 +42,18 @@ func (f *Frontend) BuildIR(dir string) (*ir.Program, error) {
 		prog.Packages[pkg.PkgPath] = irPkg
 	}
 
+	androidImport := "github.com/Baba01hacker666/Go2APK/android"
+	for _, pkg := range pkgs {
+		for _, file := range pkg.Syntax {
+			for _, imp := range file.Imports {
+				importPath := imp.Path.Value[1 : len(imp.Path.Value)-1]
+				if len(importPath) > 8 && importPath[len(importPath)-8:] == "/android" && (len(importPath) > 16 && importPath[len(importPath)-15:] == "Go2APK/android") {
+					androidImport = importPath
+				}
+			}
+		}
+	}
+
 	uiTree, pages, events, permissions, receivers, hasVPN := ExtractUI(pkgs)
 	prog.UI = uiTree
 	prog.Pages = pages
@@ -49,6 +61,7 @@ func (f *Frontend) BuildIR(dir string) (*ir.Program, error) {
 	prog.Permissions = permissions
 	prog.Receivers = receivers
 	prog.HasVPN = hasVPN
+	prog.AndroidImport = androidImport
 
 	return prog, nil
 }

@@ -13,7 +13,11 @@ func RenderEventsGen(prog *ir.Program) string {
 	b.WriteString("package main\n\n")
 
 	if prog != nil && len(prog.Events) > 0 {
-		b.WriteString("import \"github.com/Baba01hacker666/Go2APK/android\"\n\n")
+		importPath := prog.AndroidImport
+		if importPath == "" {
+			importPath = "github.com/Baba01hacker666/Go2APK/android"
+		}
+		b.WriteString(fmt.Sprintf("import %q\n\n", importPath))
 		b.WriteString("func init() {\n")
 		for eventName, goFunc := range prog.Events {
 			b.WriteString(fmt.Sprintf("\tandroid.RegisterEvent(\"%s\", %s)\n", eventName, goFunc))

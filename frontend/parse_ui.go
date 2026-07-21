@@ -117,7 +117,11 @@ func parsePage(expr ast.Expr, events map[string]string) ir.Page {
 		if !ok {
 			continue
 		}
-		key := kv.Key.(*ast.Ident).Name
+		keyIdent, ok := kv.Key.(*ast.Ident)
+		if !ok {
+			continue
+		}
+		key := keyIdent.Name
 		if key == "Name" {
 			page.Name = stringLit(kv.Value)
 		} else if key == "Root" {
@@ -138,7 +142,11 @@ func parseStyle(expr ast.Expr) ir.Style {
 		if !ok {
 			continue
 		}
-		key := kv.Key.(*ast.Ident).Name
+		keyIdent, ok := kv.Key.(*ast.Ident)
+		if !ok {
+			continue
+		}
+		key := keyIdent.Name
 		if bl, ok := kv.Value.(*ast.BasicLit); ok {
 			switch key {
 			case "BackgroundColor":
@@ -204,7 +212,11 @@ func parseAnimation(compLit *ast.CompositeLit) ir.Animation {
 		if !ok {
 			continue
 		}
-		key := kv.Key.(*ast.Ident).Name
+		keyIdent, ok := kv.Key.(*ast.Ident)
+		if !ok {
+			continue
+		}
+		key := keyIdent.Name
 		if bl, ok := kv.Value.(*ast.BasicLit); ok {
 			switch key {
 			case "Type":
@@ -252,7 +264,11 @@ func parseComposite(compLit *ast.CompositeLit, events map[string]string) map[str
 		if !ok {
 			continue
 		}
-		key := kv.Key.(*ast.Ident).Name
+		keyIdent, ok := kv.Key.(*ast.Ident)
+		if !ok {
+			continue
+		}
+		key := keyIdent.Name
 		if val, ok := resolveString(kv.Value); ok {
 			fields[key] = val
 		} else if key == "Style" {
@@ -378,6 +394,7 @@ func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 			sw.Checked = checked
 		}
 		if onChanged, ok := fields["OnChanged"].(string); ok {
+			sw.OnChangedFunc = onChanged
 			if id != "" {
 				events[id+"_onchanged"] = onChanged
 			}

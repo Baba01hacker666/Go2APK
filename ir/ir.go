@@ -23,6 +23,8 @@ type Program struct {
 
 	// HasVPN indicates if the program uses android.StartVPN, requiring VpnService setup.
 	HasVPN bool
+
+	AndroidImport string
 }
 
 // BroadcastReceiverDecl holds the manifest + runtime info for a broadcast receiver.
@@ -211,10 +213,11 @@ func (ProgressBarWidget) WidgetType() string { return "ProgressBar" }
 
 // SwitchWidget represents a toggle switch.
 type SwitchWidget struct {
-	ID      string
-	Checked bool
-	Style   Style
-	CSS     string
+	ID            string
+	Checked       bool
+	Style         Style
+	CSS           string
+	OnChangedFunc string
 }
 
 func (SwitchWidget) WidgetType() string { return "Switch" }

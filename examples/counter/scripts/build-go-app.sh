@@ -13,7 +13,8 @@ if [ "$HOST_ARCH" = "aarch64" ] && [ -n "${PREFIX:-}" ]; then
     echo "Using Termux native clang for arm64..."
     mkdir -p "$OUT_DIR/arm64-v8a"
     (cd "$SRC_DIR" && CGO_ENABLED=1 GOOS=android GOARCH=arm64 CC=clang \
-        go build -buildmode=c-shared -o "$OUT_DIR/arm64-v8a/$LIB_NAME" .)
+        go build -ldflags="-s -w" -buildmode=c-shared -o "$OUT_DIR/arm64-v8a/$LIB_NAME" .)
+    rm -f "$OUT_DIR/arm64-v8a/"*.h
 else
     SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$(pwd)/.go2apk/android-sdk}}"
     NDK_HOME=""
@@ -64,6 +65,7 @@ else
         
         (cd "$SRC_DIR" && CGO_ENABLED=1 GOOS=$GOOS GOARCH=$GOARCH CC="$CC" \
             go build -buildmode=c-shared -o "$OUT_DIR/$ABI/$LIB_NAME" .)
+        rm -f "$OUT_DIR/$ABI/"*.h
     }
 
     build_for_abi "android" "arm64" "arm64-v8a" "aarch64-linux-android"

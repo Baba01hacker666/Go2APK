@@ -88,6 +88,9 @@ func prepareDynamicFiles(root string, cfg config.Config) error {
 		if err := os.WriteFile(filepath.Join(root, cfg.Source, "events_gen.go"), []byte(android.RenderEventsGen(prog)), 0o644); err != nil {
 			return err
 		}
+		if err := os.WriteFile(filepath.Join(root, cfg.Source, "jni_exports_gen.go"), []byte(android.RenderJNIExports(cfg.Package, prog.AndroidImport)), 0o644); err != nil {
+			return err
+		}
 
 		// Copy assets if they exist
 		userAssetsDir := filepath.Join(root, cfg.Source, "assets")

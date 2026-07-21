@@ -163,8 +163,12 @@ func httpGet(url string) (string, error) {
 	return string(b), err
 }
 
-//export Java_com_example_go2apkapp_NativeBridge_sendEventToGo
-func Java_com_example_go2apkapp_NativeBridge_sendEventToGo(env *C.JNIEnv, clazz C.jclass, eventName C.jstring) {
+// Exported_sendEventToGo is called by the generated JNI wrapper in the user's main package
+func Exported_sendEventToGo(envPtr, clazzPtr, eventNamePtr unsafe.Pointer) {
+	env := (*C.JNIEnv)(envPtr)
+	clazz := (C.jclass)(clazzPtr)
+	eventName := (C.jstring)(eventNamePtr)
+
 	currentEnv = env
 	defer func() { currentEnv = nil }()
 
@@ -178,19 +182,22 @@ func Java_com_example_go2apkapp_NativeBridge_sendEventToGo(env *C.JNIEnv, clazz 
 	handleEvent(name)
 }
 
-//export Java_com_example_go2apkapp_NativeBridge_onPermissionResult
-func Java_com_example_go2apkapp_NativeBridge_onPermissionResult(env *C.JNIEnv, clazz C.jclass, permission C.jstring, granted C.jboolean) {
+// Exported_onPermissionResult is called by the generated JNI wrapper
+func Exported_onPermissionResult(envPtr, clazzPtr, permissionPtr unsafe.Pointer, granted bool) {
+	env := (*C.JNIEnv)(envPtr)
+	permission := (C.jstring)(permissionPtr)
+	
 	perm := javaString(env, permission)
 	if cb, ok := permissionCallbacks[perm]; ok {
-		cb(granted != 0)
+		cb(granted)
 		delete(permissionCallbacks, perm)
 	}
 }
 
-//export Java_com_example_go2apkapp_NativeBridge_onVpnEstablished
-func Java_com_example_go2apkapp_NativeBridge_onVpnEstablished(env *C.JNIEnv, clazz C.jclass, fd C.jint) {
+// Exported_onVpnEstablished is called by the generated JNI wrapper
+func Exported_onVpnEstablished(envPtr, clazzPtr unsafe.Pointer, fd int) {
 	if VpnCallback != nil {
-		VpnCallback(int(fd))
+		VpnCallback(fd)
 	}
 }
 
