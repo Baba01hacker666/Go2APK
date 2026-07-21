@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"fmt"
+	"go/ast"
 
 	"github.com/Baba01hacker666/Go2APK/ir"
 	"github.com/Baba01hacker666/Go2APK/parser"
@@ -37,8 +38,19 @@ func (f *Frontend) BuildIR(dir string) (*ir.Program, error) {
 
 		fmt.Printf("Package %s has %d syntax trees\n", pkg.Name, len(pkg.Syntax))
 
-		// TODO: Traverse AST/Types to populate IR structs and detect entrypoint
-
+		for _, file := range pkg.Syntax {
+			for _, decl := range file.Decls {
+				if fnDecl, ok := decl.(*ast.FuncDecl); ok {
+					irPkg.Funcs[fnDecl.Name.Name] = &ir.Function{Name: fnDecl.Name.Name}
+				} else if genDecl, ok := decl.(*ast.GenDecl); ok {
+					for _, spec := range genDecl.Specs {
+						if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+							irPkg.Types[typeSpec.Name.Name] = &ir.Type{Name: typeSpec.Name.Name}
+						}
+					}
+				}
+			}
+		}
 		prog.Packages[pkg.PkgPath] = irPkg
 	}
 
