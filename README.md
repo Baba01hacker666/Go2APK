@@ -12,6 +12,8 @@ Go2APK is a toolchain that converts declarative Go UI applications into native A
 
 ```bash
 go install ./cmd/go2apk
+go2apk new my-app
+cd my-app
 go2apk init
 go2apk doctor
 go2apk sdk install
@@ -23,6 +25,7 @@ go2apk release
 ## Commands
 
 ```bash
+go run ./cmd/go2apk new my-app     # create a split UI/logic starter app
 go run ./cmd/go2apk init           # write config, Android templates, scripts, and workflows
 go run ./cmd/go2apk preview        # instantly generate a preview.html mocking your Android UI
 go run ./cmd/go2apk build          # build a debug APK via Gradle and the NDK
@@ -67,3 +70,16 @@ The repository includes:
 
 - `.github/workflows/ci.yml` for formatting, tests, CLI build, Android SDK setup, and debug artifacts.
 - `.github/workflows/release.yml` for tag-based release builds, checksums, and GitHub Release uploads.
+
+
+## App structure and dependencies
+
+Use `go2apk new my-app` to create a starter app where UI composition and app logic live in separate Go files (`home_ui.go` and `logic.go`). UI files can return reusable `ui.Component` functions, while logic files hold event handlers and business code.
+
+Go dependencies work like normal Go modules: run `go get example.com/package` inside your app module and import it from your logic files. Android Maven libraries can be added to `go2apk.yaml` with `android_dependencies`:
+
+```yaml
+android_dependencies: com.google.android.material:material:1.12.0, androidx.activity:activity:1.9.3
+```
+
+The generated Gradle app automatically turns those coordinates into `implementation` dependencies.

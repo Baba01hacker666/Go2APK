@@ -119,6 +119,46 @@ func UpdateText(id, text string) {
 	updateTextNative(id, text)
 }
 
+// SetVisibility changes a widget visibility. Accepted values are "visible", "invisible", and "gone".
+func SetVisibility(id, visibility string) {
+	setProperty(id, "visibility", visibility)
+}
+
+// SetEnabled enables or disables a widget by ID.
+func SetEnabled(id string, enabled bool) {
+	if enabled {
+		setProperty(id, "enabled", "true")
+		return
+	}
+	setProperty(id, "enabled", "false")
+}
+
+// Toast displays a short Android toast message.
+func Toast(message string) {
+	toastNative(message, false)
+}
+
+// ToastLong displays a longer Android toast message.
+func ToastLong(message string) {
+	toastNative(message, true)
+}
+
+// OpenURL opens a URL in the user's default browser.
+func OpenURL(url string) {
+	StartActivity(Intent{Action: "android.intent.action.VIEW", Data: url})
+}
+
+// ShareText opens Android's share sheet for plain text.
+func ShareText(text string) {
+	shareTextNative(text)
+}
+
+// DeviceInfo returns a small map of Android device/build metadata when running
+// on Android. Desktop stubs return an empty map.
+func DeviceInfo() map[string]string {
+	return deviceInfoNative()
+}
+
 // Animate animates a UI widget. property can be "alpha", "translationX", "translationY", "scaleX", "scaleY".
 func Animate(id string, property string, to float32, durationMs int) {
 	animateNative(id, property, to, durationMs)

@@ -36,6 +36,12 @@ func sendBroadcastNative(action string) {}
 
 func sendBroadcastWithExtrasNative(action string, extras map[string]string) {}
 
+func toastNative(message string, long bool) {}
+
+func shareTextNative(text string) {}
+
+func deviceInfoNative() map[string]string { return map[string]string{} }
+
 func animateNative(id string, property string, to float32, durationMs int) {}
 
 // StartVPN requests Android VPN permissions. If granted, it starts the VPN

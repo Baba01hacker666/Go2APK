@@ -69,3 +69,20 @@ android.SendBroadcastWithExtras("com.my.app.DATA_EVENT", map[string]string{
 	"status":  "active",
 })
 ```
+
+
+## 4. Convenience APIs
+
+Go2APK includes small helpers for common Android actions from event handlers:
+
+```go
+android.Toast("Saved")
+android.ToastLong("Upload complete")
+android.OpenURL("https://example.com")
+android.ShareText("Built with Go2APK")
+android.SetVisibility("details", "gone")
+android.SetEnabled("submit", false)
+info := android.DeviceInfo()
+```
+
+`android.UpdateText`, `android.GetText`, and `android.Animate` remain available for direct widget updates and simple animations.

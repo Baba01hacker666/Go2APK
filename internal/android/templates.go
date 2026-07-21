@@ -80,10 +80,12 @@ func RenderManifest(cfg config.Config, prog *ir.Program) string {
 
 // RenderBuildGradle creates a starter Android application Gradle file.
 func RenderBuildGradle(cfg config.Config) string {
+	dependencies := renderGradleDependencies(cfg.AndroidDependencies)
 	return fmt.Sprintf(`plugins {
     id 'com.android.application'
 }
 
+%s
 android {
     namespace '%s'
     compileSdk %d
@@ -133,7 +135,7 @@ tasks.register('buildGoApp', Exec) {
 }
 
 preBuild.dependsOn('buildGoApp')
-`, cfg.Package, cfg.TargetSDK, cfg.Package, cfg.MinSDK, cfg.TargetSDK, cfg.Version, cfg.Obfuscate, cfg.Obfuscate, cfg.Source, cfg.Source)
+`, dependencies, cfg.Package, cfg.TargetSDK, cfg.Package, cfg.MinSDK, cfg.TargetSDK, cfg.Version, cfg.Obfuscate, cfg.Obfuscate, cfg.Source, cfg.Source)
 }
 
 // RenderStyles creates the default Android theme resource.
@@ -151,4 +153,21 @@ func RenderProguardRules() string {
 -keep class *.MainActivity { *; }
 -keep class *.Go2APKBroadcastReceiver { *; }
 `
+}
+
+func renderGradleDependencies(deps []string) string {
+	if len(deps) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString("dependencies {\n")
+	for _, dep := range deps {
+		dep = strings.TrimSpace(dep)
+		if dep == "" {
+			continue
+		}
+		sb.WriteString(fmt.Sprintf("    implementation %q\n", dep))
+	}
+	sb.WriteString("}\n")
+	return sb.String()
 }

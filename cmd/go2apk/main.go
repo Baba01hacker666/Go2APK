@@ -30,6 +30,17 @@ func run(args []string) error {
 	}
 
 	switch args[0] {
+	case "new":
+		name := "my-go-app"
+		force := false
+		for _, arg := range args[1:] {
+			if arg == "--force" {
+				force = true
+			} else {
+				name = arg
+			}
+		}
+		return project.NewApp(root, name, force)
 	case "init":
 		force := false
 		if len(args) > 1 && args[1] == "--force" {
@@ -79,6 +90,8 @@ func usage() {
 	fmt.Println(`Go2APK converts Go projects into Android APK scaffolding.
 
 Usage:
+  go2apk new <dir> [--force]
+                         Create a split UI/logic starter app
   go2apk init [--force] Generate go2apk.yaml, Android templates, and helper scripts
   go2apk check          Check declarative UI syntax and logic
   go2apk generate       Generate Java code without running a Gradle build

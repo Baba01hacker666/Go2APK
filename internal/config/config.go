@@ -19,20 +19,23 @@ type Config struct {
 	Theme       string
 	Source      string
 	Obfuscate   bool
+	// AndroidDependencies are Gradle dependency coordinates added to app/build.gradle.
+	AndroidDependencies []string
 }
 
 // Default returns beginner-friendly Android application defaults.
 func Default() Config {
 	return Config{
-		Name:        "My Go App",
-		Package:     "com.example.goapp",
-		Version:     "0.1.0",
-		MinSDK:      23,
-		TargetSDK:   36,
-		Orientation: "unspecified",
-		Theme:       "@style/AppTheme",
-		Source:      ".",
-		Obfuscate:   false,
+		Name:                "My Go App",
+		Package:             "com.example.goapp",
+		Version:             "0.1.0",
+		MinSDK:              23,
+		TargetSDK:           36,
+		Orientation:         "unspecified",
+		Theme:               "@style/AppTheme",
+		Source:              ".",
+		Obfuscate:           false,
+		AndroidDependencies: nil,
 	}
 }
 
@@ -77,6 +80,8 @@ func Load(path string) (Config, error) {
 			cfg.Source = value
 		case "obfuscate":
 			cfg.Obfuscate, err = atob(key, value)
+		case "android_dependencies":
+			cfg.AndroidDependencies = splitList(value)
 		}
 		if err != nil {
 			return cfg, err
@@ -99,4 +104,21 @@ func atob(key, value string) (bool, error) {
 		return false, fmt.Errorf("invalid %s value %q: %w", key, value, err)
 	}
 	return b, nil
+}
+
+func splitList(value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "[]" {
+		return nil
+	}
+	value = strings.TrimPrefix(strings.TrimSuffix(value, "]"), "[")
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.Trim(strings.TrimSpace(part), "\"'")
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }

@@ -189,7 +189,7 @@ func Exported_sendEventToGo(envPtr, clazzPtr, eventNamePtr unsafe.Pointer) {
 func Exported_onPermissionResult(envPtr, clazzPtr, permissionPtr unsafe.Pointer, granted bool) {
 	env := (*C.JNIEnv)(envPtr)
 	permission := (C.jstring)(permissionPtr)
-	
+
 	perm := javaString(env, permission)
 	if cb, ok := permissionCallbacks[perm]; ok {
 		cb(granted)
@@ -269,9 +269,9 @@ func startActivityNative(intent Intent) {
 	if env == nil {
 		return
 	}
-	
+
 	extrasJson, _ := json.Marshal(intent.Extras)
-	
+
 	cAction := C.CString(intent.Action)
 	defer C.free(unsafe.Pointer(cAction))
 	cData := C.CString(intent.Data)
@@ -280,7 +280,7 @@ func startActivityNative(intent Intent) {
 	defer C.free(unsafe.Pointer(cPkg))
 	cExtras := C.CString(string(extrasJson))
 	defer C.free(unsafe.Pointer(cExtras))
-	
+
 	C.CallStartActivity(env, globalBridgeClass, cAction, cData, cPkg, cExtras)
 }
 
@@ -360,3 +360,9 @@ func StartVPN(config VpnConfig, onEstablished func(fd int)) {
 
 	C.CallStartVpn(env, globalBridgeClass, cConfig)
 }
+
+func toastNative(message string, long bool) {}
+
+func shareTextNative(text string) {}
+
+func deviceInfoNative() map[string]string { return map[string]string{} }

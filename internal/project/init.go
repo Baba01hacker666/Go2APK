@@ -142,5 +142,5 @@ echo "Build complete."
 }
 
 func renderConfig(cfg config.Config) string {
-	return fmt.Sprintf("name: %s\npackage: %s\nversion: %s\nmin_sdk: %d\ntarget_sdk: %d\norientation: %s\ntheme: %s\nsource: %s\nobfuscate: %t\n", cfg.Name, cfg.Package, cfg.Version, cfg.MinSDK, cfg.TargetSDK, cfg.Orientation, cfg.Theme, cfg.Source, cfg.Obfuscate)
+	return fmt.Sprintf("name: %s\npackage: %s\nversion: %s\nmin_sdk: %d\ntarget_sdk: %d\norientation: %s\ntheme: %s\nsource: %s\nobfuscate: %t\n# android_dependencies: com.google.android.material:material:1.12.0\n", cfg.Name, cfg.Package, cfg.Version, cfg.MinSDK, cfg.TargetSDK, cfg.Orientation, cfg.Theme, cfg.Source, cfg.Obfuscate)
 }
