@@ -17,7 +17,6 @@ var (
 )
 
 func main() {
-	// A beautiful, modern dark-themed calculator UI
 	ui.RunApp(
 		ui.Page{
 			Name: "MainActivity",
@@ -48,29 +47,7 @@ func main() {
 							TextSize:        20,
 							Margin:          16,
 						},
-						OnClick: func() {
-							android.Navigate("BasicCalculatorActivity")
-						},
-					},
-					ui.Button{
-						ID:   "btn_http",
-						Text: "Test HTTP GET",
-						Style: ui.Style{
-							BackgroundColor: "#A6E3A1",
-							TextColor:       "#11111B",
-							TextSize:        20,
-							Margin:          16,
-						},
-						OnClick: onTestHttp,
-					},
-					ui.TextView{
-						ID:   "http_result",
-						Text: "Result will appear here",
-						Style: ui.Style{
-							TextColor: "#CDD6F4",
-							TextSize:  14,
-							Margin:    16,
-						},
+						OnClick: onOpenCalc,
 					},
 				},
 			},
@@ -99,9 +76,10 @@ func main() {
 						},
 					},
 					ui.Button{
-						ID: "btn_adv", Text: "Advanced Mode",
+						ID:      "btn_adv",
+						Text:    "Advanced Mode",
 						Style:   ui.Style{Width: ui.MatchParent, BackgroundColor: "#F5C2E7", TextColor: "#11111B", TextSize: 20, Margin: 8},
-						OnClick: func() { android.Navigate("AdvancedCalculatorActivity") },
+						OnClick: onAdvMode,
 					},
 					ui.Row{
 						Style: ui.Style{Height: 0, Weight: 1, Width: ui.MatchParent, Margin: 4},
@@ -175,9 +153,10 @@ func main() {
 						},
 					},
 					ui.Button{
-						ID: "btn_bas", Text: "Basic Mode",
+						ID:      "btn_bas",
+						Text:    "Basic Mode",
 						Style:   ui.Style{Width: ui.MatchParent, BackgroundColor: "#F5C2E7", TextColor: "#11111B", TextSize: 20, Margin: 8},
-						OnClick: func() { android.Navigate("BasicCalculatorActivity") },
+						OnClick: onBasMode,
 					},
 					ui.Row{
 						Style: ui.Style{Height: 0, Weight: 1, Width: ui.MatchParent, Margin: 4},
@@ -239,17 +218,16 @@ func main() {
 	)
 }
 
-func onTestHttp() {
-	android.Permission("android.permission.INTERNET")
-	res, err := android.HTTPGet("https://httpbin.org/get")
-	if err != nil {
-		android.UpdateText("http_result", "Error: "+err.Error())
-	} else {
-		if len(res) > 100 {
-			res = res[:100] + "..."
-		}
-		android.UpdateText("http_result", res)
-	}
+func onOpenCalc() {
+	android.Navigate("BasicCalculatorActivity")
+}
+
+func onAdvMode() {
+	android.Navigate("AdvancedCalculatorActivity")
+}
+
+func onBasMode() {
+	android.Navigate("BasicCalculatorActivity")
 }
 
 func updateDisplay() {

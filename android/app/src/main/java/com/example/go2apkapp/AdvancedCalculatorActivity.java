@@ -86,6 +86,9 @@ public class AdvancedCalculatorActivity extends Activity implements Go2ApkActivi
         view3.setBackgroundColor(Color.parseColor("#F5C2E7"));
         view3.setTextSize(20);
         view3.setTextColor(Color.parseColor("#11111B"));
+        view3.setOnClickListener(v -> {
+            NativeBridge.sendEvent("btn_bas_onclick");
+        });
         this.btn_bas = view3;
         view1.addView(view3);
         LinearLayout view4 = new LinearLayout(this);
