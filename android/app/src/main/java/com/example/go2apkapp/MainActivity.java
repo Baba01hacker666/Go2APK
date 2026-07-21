@@ -57,7 +57,7 @@ public class MainActivity extends Activity implements Go2ApkActivity {
         view1.addView(view2);
         Button view3 = new Button(this);
         view3.setText(android.text.Html.fromHtml("Open Calculator", android.text.Html.FROM_HTML_MODE_COMPACT));
-        LinearLayout.LayoutParams lp_view3 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
+        LinearLayout.LayoutParams lp_view3 = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT, 1.000000f);
         lp_view3.setMargins(16, 16, 16, 16);
         view3.setLayoutParams(lp_view3);
         view3.setBackgroundColor(Color.parseColor("#89B4FA"));

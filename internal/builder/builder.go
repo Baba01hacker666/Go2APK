@@ -25,10 +25,11 @@ func Check(root string) error {
 		return err
 	}
 	f := frontend.New()
-	_, err = f.BuildIR(filepath.Join(root, cfg.Source))
+	prog, err := f.BuildIR(filepath.Join(root, cfg.Source))
 	if err != nil {
 		return fmt.Errorf("syntax check failed: %w", err)
 	}
+	LintProgram(prog)
 	fmt.Println("Syntax check passed.")
 	return nil
 }
@@ -39,6 +40,7 @@ func prepareDynamicFiles(root string, cfg config.Config) error {
 	if err != nil {
 		return fmt.Errorf("frontend parsing failed: %w", err)
 	}
+	LintProgram(prog)
 	if prog != nil {
 		javaDir := filepath.Join(root, "android", "app", "src", "main", "java", filepath.FromSlash(strings.ReplaceAll(cfg.Package, ".", "/")))
 		if err := os.MkdirAll(javaDir, 0o755); err != nil {
