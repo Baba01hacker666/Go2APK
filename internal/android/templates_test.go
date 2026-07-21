@@ -17,3 +17,22 @@ func TestRenderBuildGradleObfuscation(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderBuildGradleDependenciesAndSourceDirs(t *testing.T) {
+	cfg := config.Default()
+	cfg.Source = "./app"
+	cfg.SourceDirs = []string{"./app/ui", "./app/logic"}
+	cfg.GradleDependencies = []string{"androidx.appcompat:appcompat:1.7.0", "com.google.android.material:material:1.12.0"}
+	gradle := RenderBuildGradle(cfg)
+	for _, want := range []string{
+		`implementation "androidx.appcompat:appcompat:1.7.0"`,
+		`implementation "com.google.android.material:material:1.12.0"`,
+		`inputs.dir(rootProject.file('.././app'))`,
+		`inputs.dir(rootProject.file('.././app/ui'))`,
+		`inputs.dir(rootProject.file('.././app/logic'))`,
+	} {
+		if !strings.Contains(gradle, want) {
+			t.Fatalf("expected build.gradle to contain %q:\n%s", want, gradle)
+		}
+	}
+}

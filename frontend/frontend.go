@@ -17,12 +17,19 @@ func New() *Frontend {
 
 // BuildIR parses the code at dir and produces an intermediate representation.
 func (f *Frontend) BuildIR(dir string) (*ir.Program, error) {
-	pkgs, err := parser.Parse(parser.ParseConfig{Dir: dir})
+	return f.BuildIRDirs([]string{dir})
+}
+
+// BuildIRDirs parses one or more app source roots. The first directory is treated
+// as the main application package; extra directories make split UI/logic projects
+// explicit for checks and Gradle inputs while normal Go imports keep working.
+func (f *Frontend) BuildIRDirs(dirs []string) (*ir.Program, error) {
+	pkgs, err := parser.Parse(parser.ParseConfig{Dirs: dirs})
 	if err != nil {
 		return nil, fmt.Errorf("parsing failed: %w", err)
 	}
 
-	fmt.Printf("Parsed %d packages in dir %s\n", len(pkgs), dir)
+	fmt.Printf("Parsed %d packages in %d source root(s)\n", len(pkgs), len(dirs))
 
 	prog := &ir.Program{
 		Packages: make(map[string]*ir.Package),

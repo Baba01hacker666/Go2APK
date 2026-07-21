@@ -2,6 +2,7 @@ package android
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/Baba01hacker666/Go2APK/internal/config"
@@ -120,20 +121,47 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-}
-
+%s}
+%s
 tasks.register('buildGoApp', Exec) {
     description = 'Builds the Go JNI library.'
     group = 'build'
     def script = rootProject.file('../scripts/build-go-app.sh')
-    inputs.dir(rootProject.file('../%s'))
-    outputs.dir(project.file('src/main/jniLibs'))
+%s    outputs.dir(project.file('src/main/jniLibs'))
     workingDir rootProject.file('..')
     commandLine 'bash', script.absolutePath, '%s'
 }
 
 preBuild.dependsOn('buildGoApp')
-`, cfg.Package, cfg.TargetSDK, cfg.Package, cfg.MinSDK, cfg.TargetSDK, cfg.Version, cfg.Obfuscate, cfg.Obfuscate, cfg.Source, cfg.Source)
+`, cfg.Package, cfg.TargetSDK, cfg.Package, cfg.MinSDK, cfg.TargetSDK, cfg.Version, cfg.Obfuscate, cfg.Obfuscate, renderDependencyMetadata(cfg), renderGradleDependencies(cfg), renderGradleInputs(cfg), cfg.Source)
+}
+
+func renderDependencyMetadata(cfg config.Config) string {
+	if len(cfg.GradleDependencies) == 0 {
+		return ""
+	}
+	return "\n    dependenciesInfo {\n        includeInApk true\n        includeInBundle true\n    }\n"
+}
+
+func renderGradleDependencies(cfg config.Config) string {
+	if len(cfg.GradleDependencies) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString("\ndependencies {\n")
+	for _, dep := range cfg.GradleDependencies {
+		sb.WriteString(fmt.Sprintf("    implementation %q\n", dep))
+	}
+	sb.WriteString("}\n\n")
+	return sb.String()
+}
+
+func renderGradleInputs(cfg config.Config) string {
+	var sb strings.Builder
+	for _, src := range cfg.Sources() {
+		sb.WriteString(fmt.Sprintf("    inputs.dir(rootProject.file('../%s'))\n", filepath.ToSlash(src)))
+	}
+	return sb.String()
 }
 
 // RenderStyles creates the default Android theme resource.

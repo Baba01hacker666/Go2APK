@@ -25,7 +25,7 @@ func Check(root string) error {
 		return err
 	}
 	f := frontend.New()
-	prog, err := f.BuildIR(filepath.Join(root, cfg.Source))
+	prog, err := f.BuildIRDirs(resolveSources(root, cfg))
 	if err != nil {
 		return fmt.Errorf("syntax check failed: %w", err)
 	}
@@ -36,7 +36,7 @@ func Check(root string) error {
 
 func prepareDynamicFiles(root string, cfg config.Config) error {
 	f := frontend.New()
-	prog, err := f.BuildIR(filepath.Join(root, cfg.Source))
+	prog, err := f.BuildIRDirs(resolveSources(root, cfg))
 	if err != nil {
 		return fmt.Errorf("frontend parsing failed: %w", err)
 	}
@@ -254,6 +254,15 @@ func copyArtifacts(srcDir, dstDir string) error {
 	return nil
 }
 
+func resolveSources(root string, cfg config.Config) []string {
+	sources := cfg.Sources()
+	out := make([]string, 0, len(sources))
+	for _, src := range sources {
+		out = append(out, filepath.Join(root, src))
+	}
+	return out
+}
+
 func loadConfig(root string) (config.Config, error) {
 	path := filepath.Join(root, "go2apk.yaml")
 	if err := require(path); err != nil {
@@ -270,7 +279,7 @@ func Preview(root string) error {
 		return err
 	}
 	f := frontend.New()
-	prog, err := f.BuildIR(filepath.Join(root, cfg.Source))
+	prog, err := f.BuildIRDirs(resolveSources(root, cfg))
 	if err != nil {
 		return fmt.Errorf("frontend parsing failed: %w", err)
 	}

@@ -10,15 +10,18 @@ import (
 
 // Config contains the project metadata used to generate Android artifacts.
 type Config struct {
-	Name        string
-	Package     string
-	Version     string
-	MinSDK      int
-	TargetSDK   int
-	Orientation string
-	Theme       string
-	Source      string
-	Obfuscate   bool
+	Name               string
+	Package            string
+	Version            string
+	MinSDK             int
+	TargetSDK          int
+	Orientation        string
+	Theme              string
+	Source             string
+	SourceDirs         []string
+	GradleDependencies []string
+	GoBuildTags        []string
+	Obfuscate          bool
 }
 
 // Default returns beginner-friendly Android application defaults.
@@ -34,6 +37,21 @@ func Default() Config {
 		Source:      ".",
 		Obfuscate:   false,
 	}
+}
+
+// Sources returns all Go source roots that should be parsed or watched.
+func (c Config) Sources() []string {
+	seen := make(map[string]bool)
+	var out []string
+	for _, src := range append([]string{c.Source}, c.SourceDirs...) {
+		src = strings.TrimSpace(src)
+		if src == "" || seen[src] {
+			continue
+		}
+		seen[src] = true
+		out = append(out, src)
+	}
+	return out
 }
 
 // Load reads go2apk.yaml values. It intentionally supports the simple
@@ -75,6 +93,12 @@ func Load(path string) (Config, error) {
 			cfg.Theme = value
 		case "source":
 			cfg.Source = value
+		case "source_dirs":
+			cfg.SourceDirs = splitCSV(value)
+		case "gradle_dependencies", "android_dependencies":
+			cfg.GradleDependencies = splitCSV(value)
+		case "go_build_tags":
+			cfg.GoBuildTags = splitCSV(value)
 		case "obfuscate":
 			cfg.Obfuscate, err = atob(key, value)
 		}
@@ -83,6 +107,24 @@ func Load(path string) (Config, error) {
 		}
 	}
 	return cfg, scanner.Err()
+}
+
+func splitCSV(value string) []string {
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	seen := make(map[string]bool)
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" || seen[part] {
+			continue
+		}
+		seen[part] = true
+		out = append(out, part)
+	}
+	return out
 }
 
 func atoi(key, value string) (int, error) {
