@@ -149,6 +149,16 @@ type AudioWidget struct {
 
 func (AudioWidget) WidgetType() string { return "Audio" }
 
+// XMLView represents a native Android XML layout
+type XMLView struct {
+	ID     string
+	Layout string
+	Style  Style
+	CSS    string
+}
+
+func (x XMLView) WidgetType() string { return "XMLView" }
+
 // VideoWidget represents an video player.
 type VideoWidget struct {
 	ID    string

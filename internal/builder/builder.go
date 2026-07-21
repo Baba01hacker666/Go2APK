@@ -88,6 +88,24 @@ func prepareDynamicFiles(root string, cfg config.Config) error {
 		if err := os.WriteFile(filepath.Join(root, cfg.Source, "events_gen.go"), []byte(android.RenderEventsGen(prog)), 0o644); err != nil {
 			return err
 		}
+
+		// Copy assets if they exist
+		userAssetsDir := filepath.Join(root, cfg.Source, "assets")
+		if stat, err := os.Stat(userAssetsDir); err == nil && stat.IsDir() {
+			destAssetsDir := filepath.Join(root, "android", "app", "src", "main", "assets")
+			if err := copyDir(userAssetsDir, destAssetsDir); err != nil {
+				return fmt.Errorf("failed to copy assets: %w", err)
+			}
+		}
+
+		// Copy res/xml if they exist
+		userResDir := filepath.Join(root, cfg.Source, "res")
+		if stat, err := os.Stat(userResDir); err == nil && stat.IsDir() {
+			destResDir := filepath.Join(root, "android", "app", "src", "main", "res")
+			if err := copyDir(userResDir, destResDir); err != nil {
+				return fmt.Errorf("failed to copy res: %w", err)
+			}
+		}
 	}
 	return nil
 }

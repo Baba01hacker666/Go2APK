@@ -504,6 +504,10 @@ func declareFields(b *strings.Builder, w ir.Widget) {
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("    private VideoView %s;\n", v.ID))
 		}
+	case ir.XMLView:
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("    private View %s;\n", v.ID))
+		}
 	}
 }
 
@@ -827,6 +831,18 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 			b.WriteString(fmt.Sprintf("        %s.loadDataWithBaseURL(null, \"%s\", \"text/html\", \"UTF-8\", null);\n", viewVar, escapedHTML))
 		}
 		applyStyle(b, viewVar, v.Style, -1, -1, 0)
+		applyCSS(b, viewVar, v.CSS)
+		if v.ID != "" {
+			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
+		}
+		if parentVar != "" {
+			b.WriteString(fmt.Sprintf("        %s.addView(%s);\n", parentVar, viewVar))
+		}
+		return viewVar
+	case ir.XMLView:
+		b.WriteString(fmt.Sprintf("        int layoutResId_%s = getResources().getIdentifier(\"%s\", \"layout\", getPackageName());\n", viewVar, v.Layout))
+		b.WriteString(fmt.Sprintf("        View %s = getLayoutInflater().inflate(layoutResId_%s, null);\n", viewVar, viewVar))
+		applyStyle(b, viewVar, v.Style, -1, -2, 0)
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))

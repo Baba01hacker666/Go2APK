@@ -349,6 +349,9 @@ func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
 		vid := ir.VideoWidget{ID: id, Style: style, CSS: css}
 		vid.Src, _ = fields["Src"].(string)
 		return vid
+	case "XMLView":
+		layout, _ := fields["Layout"].(string)
+		return ir.XMLView{ID: id, Layout: layout, Style: style, CSS: css}
 	case "WebView":
 		wv := ir.WebViewWidget{ID: id, Style: style, CSS: css}
 		wv.Src, _ = fields["Src"].(string)
