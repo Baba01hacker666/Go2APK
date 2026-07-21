@@ -81,11 +81,23 @@ final class NativeBridge {
      * @param data    URI data string, or "" if none
      * @param pkg     explicit package name for the target app, or "" if implicit
      */
-    public static void startActivity(String action, String data, String pkg) {
+    public static void startActivity(String action, String data, String pkg, String extrasJson) {
         if (currentActivity == null) return;
         Intent intent = new Intent(action);
         if (!data.isEmpty()) intent.setData(Uri.parse(data));
         if (!pkg.isEmpty())  intent.setPackage(pkg);
+        if (extrasJson != null && !extrasJson.isEmpty()) {
+            try {
+                org.json.JSONObject obj = new org.json.JSONObject(extrasJson);
+                java.util.Iterator<String> keys = obj.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    intent.putExtra(key, obj.getString(key));
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
         currentActivity.startActivity(intent);
     }
 

@@ -46,6 +46,7 @@ func main() {
 							TextColor:       "#11111B",
 							TextSize:        20,
 							Margin:          16,
+							Width:           ui.MatchParent,
 						},
 						OnClick: onOpenCalc,
 					},
