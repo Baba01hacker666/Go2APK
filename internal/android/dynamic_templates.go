@@ -51,24 +51,24 @@ final class NativeBridge {
 
     /** Called from Go to update any widget text on the UI thread. */
     public static void updateText(String id, String text) {
-        if (currentActivity instanceof MainActivity) {
+        if (currentActivity instanceof Go2ApkActivity) {
             currentActivity.runOnUiThread(() ->
-                ((MainActivity) currentActivity).updateWidgetText(id, text));
+                ((Go2ApkActivity) currentActivity).updateWidgetText(id, text));
         }
     }
 
     /** Called from Go to animate a widget on the UI thread. */
     public static void animate(String id, String property, float to, int durationMs) {
-        if (currentActivity instanceof MainActivity) {
+        if (currentActivity instanceof Go2ApkActivity) {
             currentActivity.runOnUiThread(() ->
-                ((MainActivity) currentActivity).animateWidget(id, property, to, durationMs));
+                ((Go2ApkActivity) currentActivity).animateWidget(id, property, to, durationMs));
         }
     }
 
     /** Called from Go to read the current text of a widget. */
     public static String getText(String id) {
-        if (currentActivity instanceof MainActivity) {
-            return ((MainActivity) currentActivity).getWidgetText(id);
+        if (currentActivity instanceof Go2ApkActivity) {
+            return ((Go2ApkActivity) currentActivity).getWidgetText(id);
         }
         return "";
     }
@@ -141,6 +141,17 @@ final class NativeBridge {
         if (requestCode == VPN_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
             launchVpnService(pendingVpnConfig);
             pendingVpnConfig = null;
+        }
+    }
+
+    public static void navigate(String target) {
+        if (currentActivity == null) return;
+        try {
+            Class<?> targetClass = Class.forName(currentActivity.getPackageName() + "." + target);
+            Intent intent = new Intent(currentActivity, targetClass);
+            currentActivity.startActivity(intent);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -248,7 +259,19 @@ public class Go2ApkVpnService extends VpnService {
 `, cfg.Package)
 }
 
-func RenderDynamicMainActivity(cfg config.Config, prog *ir.Program) string {
+func RenderGo2ApkActivity(cfg config.Config) string {
+	return fmt.Sprintf(`package %s;
+
+public interface Go2ApkActivity {
+    void updateWidgetText(String id, String text);
+    void animateWidget(String id, String property, float to, int durationMs);
+    String getWidgetText(String id);
+}
+`, cfg.Package)
+}
+
+// RenderDynamicActivity generates an Android Activity class for a given UI widget tree.
+func RenderDynamicActivity(cfg config.Config, activityName string, root ir.Widget) string {
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf(`package %s;
 
@@ -272,12 +295,11 @@ import java.net.URL;
 import java.util.concurrent.Executors;
 import android.animation.ObjectAnimator;
 
-public class MainActivity extends Activity {
-`, cfg.Package))
+public class %s extends Activity implements Go2ApkActivity {
+`, cfg.Package, activityName))
 
-	// Declare fields for IDs
-	if prog != nil && prog.UI != nil {
-		declareFields(&builder, prog.UI)
+	if root != nil {
+		declareFields(&builder, root)
 	}
 
 	builder.WriteString(fmt.Sprintf(`
@@ -292,9 +314,9 @@ public class MainActivity extends Activity {
     private View createAppView() {
 `, cfg.Name))
 
-	if prog != nil && prog.UI != nil {
+	if root != nil {
 		counter := 0
-		rootView := buildView(&builder, prog.UI, "", &counter)
+		rootView := buildView(&builder, root, "", &counter)
 		builder.WriteString(fmt.Sprintf("        return %s;\n", rootView))
 	} else {
 		// Fallback blank view
@@ -306,22 +328,22 @@ public class MainActivity extends Activity {
 
     public void updateWidgetText(String id, String text) {
 `)
-	if prog != nil && prog.UI != nil {
-		writeUpdateWidgetCases(&builder, prog.UI)
+	if root != nil {
+		writeUpdateWidgetCases(&builder, root)
 	}
 	builder.WriteString(`    }
 
     public void animateWidget(String id, String property, float to, int durationMs) {
 `)
-	if prog != nil && prog.UI != nil {
-		writeAnimateWidgetCases(&builder, prog.UI)
+	if root != nil {
+		writeAnimateWidgetCases(&builder, root)
 	}
 	builder.WriteString(`    }
 
     public String getWidgetText(String id) {
 `)
-	if prog != nil && prog.UI != nil {
-		writeGetWidgetCases(&builder, prog.UI)
+	if root != nil {
+		writeGetWidgetCases(&builder, root)
 	}
 	builder.WriteString(`        return "";
     }

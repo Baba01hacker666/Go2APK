@@ -42,8 +42,9 @@ func (f *Frontend) BuildIR(dir string) (*ir.Program, error) {
 		prog.Packages[pkg.PkgPath] = irPkg
 	}
 
-	uiTree, events, permissions, receivers, hasVPN := ExtractUI(pkgs)
+	uiTree, pages, events, permissions, receivers, hasVPN := ExtractUI(pkgs)
 	prog.UI = uiTree
+	prog.Pages = pages
 	prog.Events = events
 	prog.Permissions = permissions
 	prog.Receivers = receivers

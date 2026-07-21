@@ -79,7 +79,7 @@ func TestExtractUI(t *testing.T) {
 		t.Fatalf("packages had errors")
 	}
 
-	uiTree, events, permissions, receivers, _ := ExtractUI(pkgs)
+	uiTree, _, events, permissions, receivers, _ := ExtractUI(pkgs)
 
 	if uiTree == nil {
 		t.Fatalf("Expected root widget, got nil")

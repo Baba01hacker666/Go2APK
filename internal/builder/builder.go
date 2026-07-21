@@ -44,8 +44,23 @@ func prepareDynamicFiles(root string, cfg config.Config) error {
 		if err := os.MkdirAll(javaDir, 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(javaDir, "MainActivity.java"), []byte(android.RenderDynamicMainActivity(cfg, prog)), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(javaDir, "Go2ApkActivity.java"), []byte(android.RenderGo2ApkActivity(cfg)), 0o644); err != nil {
 			return err
+		}
+		if len(prog.Pages) > 0 {
+			for i, page := range prog.Pages {
+				activityName := page.Name
+				if i == 0 {
+					activityName = "MainActivity"
+				}
+				if err := os.WriteFile(filepath.Join(javaDir, activityName+".java"), []byte(android.RenderDynamicActivity(cfg, activityName, page.Root)), 0o644); err != nil {
+					return err
+				}
+			}
+		} else {
+			if err := os.WriteFile(filepath.Join(javaDir, "MainActivity.java"), []byte(android.RenderDynamicActivity(cfg, "MainActivity", prog.UI)), 0o644); err != nil {
+				return err
+			}
 		}
 		if err := os.WriteFile(filepath.Join(javaDir, "NativeBridge.java"), []byte(android.RenderNativeBridge(cfg)), 0o644); err != nil {
 			return err

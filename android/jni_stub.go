@@ -2,7 +2,26 @@
 
 package android
 
+import (
+	"io"
+	"net/http"
+)
+
 func updateTextNative(id string, text string) {}
+
+func setProperty(id, name, value string) {}
+
+func navigate(target string) {}
+
+func httpGet(url string) (string, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	return string(b), err
+}
 
 func getTextNative(id string) string { return "" }
 

@@ -30,17 +30,25 @@ func RenderManifest(cfg config.Config, prog *ir.Program) string {
 	}
 
 	sb.WriteString(fmt.Sprintf(
-		"    <application android:extractNativeLibs=\"true\" android:theme=%q android:label=%q android:allowBackup=\"true\" android:supportsRtl=\"true\">\n",
+		"    <application android:extractNativeLibs=\"true\" android:theme=%q android:label=%q android:allowBackup=\"true\" android:supportsRtl=\"true\" android:usesCleartextTraffic=\"true\">\n",
 		cfg.Theme, cfg.Name,
 	))
 
-	// Main activity
+	// Main activity (or first page)
 	sb.WriteString(fmt.Sprintf(`        <activity android:name=".MainActivity" android:exported="true" android:screenOrientation=%q>`+"\n", cfg.Orientation))
 	sb.WriteString("            <intent-filter>\n")
 	sb.WriteString("                <action android:name=\"android.intent.action.MAIN\" />\n")
 	sb.WriteString("                <category android:name=\"android.intent.category.LAUNCHER\" />\n")
 	sb.WriteString("            </intent-filter>\n")
 	sb.WriteString("        </activity>\n")
+
+	// Additional activities for multi-page apps
+	if prog != nil && len(prog.Pages) > 1 {
+		for i := 1; i < len(prog.Pages); i++ {
+			page := prog.Pages[i]
+			sb.WriteString(fmt.Sprintf(`        <activity android:name=".%s" android:exported="false" android:screenOrientation=%q></activity>`+"\n", page.Name, cfg.Orientation))
+		}
+	}
 
 	// Broadcast receivers
 	if prog != nil {

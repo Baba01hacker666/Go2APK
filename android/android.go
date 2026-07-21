@@ -14,6 +14,21 @@ func Permission(name string) {
 	// Stub for non-Android builds.
 }
 
+// Navigate switches the current view to the specified page (Activity).
+// The target string must match the Name of a Page passed to ui.RunApp.
+// Example:
+//
+//	android.Navigate("SettingsActivity")
+func Navigate(target string) {
+	navigate(target)
+}
+
+// HTTPGet is a simple helper to make a GET request and return the response body as a string.
+// This is provided as a convenience, standard net/http also works.
+func HTTPGet(url string) (string, error) {
+	return httpGet(url)
+}
+
 // RequestPermission asks the user to grant a dangerous runtime permission.
 // onResult is called with true if the permission was granted, false otherwise.
 func RequestPermission(permission string, onResult func(granted bool)) {

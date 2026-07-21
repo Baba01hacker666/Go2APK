@@ -106,9 +106,21 @@ static void CallStartVpn(JNIEnv* env, jclass clazz, const char* configJson) {
     (*env)->CallStaticVoidMethod(env, clazz, mid, jConfig);
     (*env)->DeleteLocalRef(env, jConfig);
 }
+
+static void CallNavigate(JNIEnv* env, jclass clazz, const char* target) {
+    jmethodID mid = (*env)->GetStaticMethodID(env, clazz, "navigate", "(Ljava/lang/String;)V");
+    if (mid == NULL) return;
+    jstring jTarget = (*env)->NewStringUTF(env, target);
+    (*env)->CallStaticVoidMethod(env, clazz, mid, jTarget);
+    (*env)->DeleteLocalRef(env, jTarget);
+}
 */
 import "C"
-import "unsafe"
+import (
+	"io"
+	"net/http"
+	"unsafe"
+)
 
 // globalVM stores the Java VM pointer for background thread attachment.
 var globalVM *C.JavaVM
@@ -124,6 +136,31 @@ var permissionCallbacks = map[string]func(bool){}
 func JNI_OnLoad(vm *C.JavaVM, reserved unsafe.Pointer) C.jint {
 	globalVM = vm
 	return C.JNI_VERSION_1_6
+}
+
+func setProperty(id, name, value string) {}
+
+func navigate(target string) {
+	if globalBridgeClass == 0 {
+		return
+	}
+	env := getEnv()
+	if env == nil {
+		return
+	}
+	cTarget := C.CString(target)
+	defer C.free(unsafe.Pointer(cTarget))
+	C.CallNavigate(env, globalBridgeClass, cTarget)
+}
+
+func httpGet(url string) (string, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	return string(b), err
 }
 
 //export Java_com_example_go2apkapp_NativeBridge_sendEventToGo

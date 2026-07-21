@@ -12,11 +12,12 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// ExtractUI parses the AST for ui.Run and extracts the widget tree, permissions,
+// ExtractUI parses the AST for ui.Run or ui.RunApp and extracts the widget tree, permissions,
 // and broadcast receiver declarations.
-func ExtractUI(pkgs []*packages.Package) (ir.Widget, map[string]string, []string, []ir.BroadcastReceiverDecl, bool) {
+func ExtractUI(pkgs []*packages.Package) (ir.Widget, []ir.Page, map[string]string, []string, []ir.BroadcastReceiverDecl, bool) {
 	events := make(map[string]string)
 	var rootWidget ir.Widget
+	var pages []ir.Page
 	var permissions []string
 	var receivers []ir.BroadcastReceiverDecl
 	hasVPN := false
@@ -42,12 +43,23 @@ func ExtractUI(pkgs []*packages.Package) (ir.Widget, map[string]string, []string
 					return true
 				}
 
-				if id.Name == "ui" && sel.Sel.Name == "Run" {
-					fmt.Println("Found ui.Run call!")
-					if len(call.Args) > 0 {
-						rootWidget = parseWidget(call.Args[0], events)
+				if id.Name == "ui" {
+					if sel.Sel.Name == "Run" {
+						fmt.Println("Found ui.Run call!")
+						if len(call.Args) > 0 {
+							rootWidget = parseWidget(call.Args[0], events)
+						}
+						return false
+					} else if sel.Sel.Name == "RunApp" {
+						fmt.Println("Found ui.RunApp call!")
+						for _, arg := range call.Args {
+							page := parsePage(arg, events)
+							if page.Name != "" {
+								pages = append(pages, page)
+							}
+						}
+						return false
 					}
-					return false
 				}
 
 				if id.Name == "android" {
@@ -82,7 +94,7 @@ func ExtractUI(pkgs []*packages.Package) (ir.Widget, map[string]string, []string
 			})
 		}
 	}
-	return rootWidget, events, permissions, receivers, hasVPN
+	return rootWidget, pages, events, permissions, receivers, hasVPN
 }
 
 // stringLit extracts the string value from a basic string literal AST node.
@@ -92,6 +104,27 @@ func stringLit(expr ast.Expr) string {
 		return ""
 	}
 	return strings.Trim(bl.Value, "\"")
+}
+
+func parsePage(expr ast.Expr, events map[string]string) ir.Page {
+	var page ir.Page
+	compLit, ok := expr.(*ast.CompositeLit)
+	if !ok {
+		return page
+	}
+	for _, elt := range compLit.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+		key := kv.Key.(*ast.Ident).Name
+		if key == "Name" {
+			page.Name = stringLit(kv.Value)
+		} else if key == "Root" {
+			page.Root = parseWidget(kv.Value, events)
+		}
+	}
+	return page
 }
 
 func parseStyle(expr ast.Expr) ir.Style {

@@ -13,6 +13,16 @@ func LoadFile(path string) string {
 	return string(b)
 }
 
+// Page represents a distinct screen/activity in a multi-page app.
+type Page struct {
+	Name string // Unique name for the page, e.g. "MainActivity", "SettingsActivity"
+	Root Widget // The root widget of the page
+}
+
+// RunApp is used to launch a multi-page application.
+// The first page in the slice is treated as the main launcher activity.
+func RunApp(pages ...Page) {}
+
 // Widget is the base interface for all UI components.
 type Widget interface {
 	isWidget()

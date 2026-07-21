@@ -7,8 +7,10 @@ type Program struct {
 	Packages   map[string]*Package
 	Entrypoint *Function
 
-	// UI represents the parsed widget tree from ui.Run
+	// UI represents the parsed widget tree from ui.Run (legacy single-page)
 	UI Widget
+	// Pages represents the parsed widget trees from ui.RunApp (multi-page)
+	Pages []Page
 	// Events maps UI event handlers to Go function names
 	Events map[string]string // e.g., "button_1_onclick" -> "HandleClick"
 
@@ -33,6 +35,12 @@ type BroadcastReceiverDecl struct {
 	Action string
 	// Exported controls android:exported in the manifest
 	Exported bool
+}
+
+// Page represents a parsed screen in a multi-page app.
+type Page struct {
+	Name string
+	Root Widget
 }
 
 // Package represents a parsed Go package.

@@ -17,6 +17,7 @@ func Init(root string, force bool) error {
 	cfg := config.Default()
 	javaDir := filepath.ToSlash(filepath.Join("android/app/src/main/java", strings.ReplaceAll(cfg.Package, ".", "/")))
 	activityPath := filepath.ToSlash(filepath.Join(javaDir, "MainActivity.java"))
+	go2ApkActivityPath := filepath.ToSlash(filepath.Join(javaDir, "Go2ApkActivity.java"))
 	nativeBridgePath := filepath.ToSlash(filepath.Join(javaDir, "NativeBridge.java"))
 	files := map[string]string{
 		"go2apk.yaml": renderConfig(cfg),
@@ -32,7 +33,8 @@ include ':app'
 		"android/app/build.gradle":                 android.RenderBuildGradle(cfg),
 		"android/app/proguard-rules.pro":           android.RenderProguardRules(),
 		"android/app/src/main/AndroidManifest.xml": android.RenderManifest(cfg, nil),
-		activityPath:                                 android.RenderDynamicMainActivity(cfg, nil),
+		activityPath:                                 android.RenderDynamicActivity(cfg, "MainActivity", nil),
+		go2ApkActivityPath:                           android.RenderGo2ApkActivity(cfg),
 		nativeBridgePath:                             android.RenderNativeBridge(cfg),
 		"android/app/src/main/assets/.keep":          "",
 		"android/app/src/main/res/values/styles.xml": android.RenderStyles(),
