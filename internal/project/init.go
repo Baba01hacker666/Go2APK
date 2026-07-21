@@ -142,5 +142,5 @@ echo "Build complete."
 }
 
 func renderConfig(cfg config.Config) string {
-	return fmt.Sprintf("name: %s\npackage: %s\nversion: %s\nmin_sdk: %d\ntarget_sdk: %d\norientation: %s\ntheme: %s\nsource: %s\nobfuscate: %t\n", cfg.Name, cfg.Package, cfg.Version, cfg.MinSDK, cfg.TargetSDK, cfg.Orientation, cfg.Theme, cfg.Source, cfg.Obfuscate)
+	return fmt.Sprintf("name: %s\npackage: %s\nversion: %s\nmin_sdk: %d\ntarget_sdk: %d\norientation: %s\ntheme: %s\nsource: %s\n# Optional comma-separated folders for split UI/logic packages, for example: ./app/ui, ./app/logic\nsource_dirs: %s\n# Optional Android Maven artifacts, for example: androidx.appcompat:appcompat:1.7.0, com.google.android.material:material:1.12.0\ngradle_dependencies: %s\n# Optional Go build tags passed by your own build scripts.\ngo_build_tags: %s\nobfuscate: %t\n", cfg.Name, cfg.Package, cfg.Version, cfg.MinSDK, cfg.TargetSDK, cfg.Orientation, cfg.Theme, cfg.Source, strings.Join(cfg.SourceDirs, ", "), strings.Join(cfg.GradleDependencies, ", "), strings.Join(cfg.GoBuildTags, ", "), cfg.Obfuscate)
 }

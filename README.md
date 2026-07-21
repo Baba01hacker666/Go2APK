@@ -67,3 +67,20 @@ The repository includes:
 
 - `.github/workflows/ci.yml` for formatting, tests, CLI build, Android SDK setup, and debug artifacts.
 - `.github/workflows/release.yml` for tag-based release builds, checksums, and GitHub Release uploads.
+
+## Bigger app projects
+
+Go2APK supports split source layouts so UI declarations and app logic can live in separate files or packages. Keep the package that calls `ui.Run` or `ui.RunApp` in `source`, then add any extra first-party folders to `source_dirs` so `check`, `preview`, `generate`, and Gradle input tracking include them:
+
+```yaml
+source: ./app
+source_dirs: ./app/ui, ./app/logic
+```
+
+Normal Go modules work inside the app package, so you can use external Go libraries with `go get` and import them from your UI or logic files. Android Maven libraries can be added without editing Gradle by setting `gradle_dependencies`:
+
+```yaml
+gradle_dependencies: androidx.appcompat:appcompat:1.7.0, com.google.android.material:material:1.12.0
+```
+
+For faster iteration, use `go2apk check` to parse only the needed syntax and validate the widget tree, then `go2apk generate` or `go2apk preview` before a full APK build.
