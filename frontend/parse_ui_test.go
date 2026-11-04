@@ -231,3 +231,53 @@ func RunApp(pages ...Page) {}
 		t.Errorf("pages parsed incorrectly: %+v", prog.Pages)
 	}
 }
+
+func TestExtractUIAcceptsInlineFuncHandlers(t *testing.T) {
+	const code = `package main
+
+import (
+	"github.com/Baba01hacker666/Go2APK/android"
+	"github.com/Baba01hacker666/Go2APK/ui"
+)
+
+func main() {
+	ui.Run(ui.Column{Children: []ui.Widget{
+		ui.Button{ID: "btn", Text: "go", OnClick: func() {
+			android.UpdateText("btn", "done")
+		}},
+	}})
+}
+`
+	prog, err := ExtractUI(loadTestProgram(t, code))
+	if err != nil {
+		t.Fatalf("ExtractUI failed: %v", err)
+	}
+	got := prog.Events["btn_onclick"]
+	// The callback is kept as a Go expression so that it can be emitted into
+	// events_gen.go as written.
+	if !strings.Contains(got, "func()") || !strings.Contains(got, `android.UpdateText("btn", "done")`) {
+		t.Errorf("event handler = %q, want the func literal source", got)
+	}
+}
+
+func TestExtractUIRejectsInvalidHandler(t *testing.T) {
+	const code = `package main
+
+import "github.com/Baba01hacker666/Go2APK/ui"
+
+func makeHandler() func() { return func() {} }
+
+func main() {
+	ui.Run(ui.Column{Children: []ui.Widget{
+		ui.Button{ID: "btn", Text: "go", OnClick: makeHandler()},
+	}})
+}
+`
+	_, err := ExtractUI(loadTestProgram(t, code))
+	if err == nil {
+		t.Fatal("expected an error when OnClick is not a function")
+	}
+	if !strings.Contains(err.Error(), "OnClick") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}

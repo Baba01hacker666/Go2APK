@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/printer"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -44,6 +45,10 @@ type widgetParser struct {
 	events map[string]string
 	errs   []error
 
+	// fset owns the positions of the files being parsed. It is needed to print
+	// an inline func literal back into source form.
+	fset *token.FileSet
+
 	root        ir.Widget
 	pages       []ir.Page
 	permissions []string
@@ -76,6 +81,7 @@ func ExtractUI(pkgs []*packages.Package) (UIProgram, error) {
 		}
 		for _, file := range pkg.Syntax {
 			p.dir = ""
+			p.fset = pkg.Fset
 			if pkg.Fset != nil {
 				if pos := pkg.Fset.Position(file.Pos()); pos.Filename != "" {
 					p.dir = filepath.Dir(pos.Filename)
@@ -419,26 +425,53 @@ func (f *widgetFields) widget(key string) ir.Widget {
 	return f.p.widget(expr)
 }
 
-// handler records a Go function used as an event callback and returns its name.
-// The event name is derived from the widget ID, so this must run after id() has
-// assigned one.
+// handler records a Go callback used as an event handler.
+//
+// The callback is stored as a Go expression rather than a name so that both a
+// named function and an inline func literal work; the generated events_gen.go
+// passes it straight to android.RegisterEvent.
 func (f *widgetFields) handler(key, kind, suffix string) string {
 	expr, ok := f.kv[key]
 	if !ok {
 		return ""
 	}
-	id, ok := expr.(*ast.Ident)
-	if !ok {
-		f.p.errorf("%s must be the name of a Go function in this package", key)
+
+	var callback string
+	switch v := expr.(type) {
+	case *ast.Ident:
+		callback = v.Name
+	case *ast.FuncLit:
+		rendered, err := f.p.renderExpr(v)
+		if err != nil {
+			f.p.errorf("cannot use this %s handler: %v", key, err)
+			return ""
+		}
+		callback = rendered
+	default:
+		f.p.errorf("%s must be the name of a Go function or an inline func(){}", key)
 		return ""
 	}
+
 	widgetID := f.resolvedID
 	if widgetID == "" {
 		f.p.errorf("%s on a %s requires a usable widget ID so the event can be dispatched", key, kind)
 		return ""
 	}
-	f.p.events[widgetID+"_"+suffix] = id.Name
-	return id.Name
+	f.p.events[widgetID+"_"+suffix] = callback
+	return callback
+}
+
+// renderExpr turns an expression back into Go source, so an inline func literal
+// written in the UI declaration can be copied into the generated file.
+func (p *widgetParser) renderExpr(expr ast.Expr) (string, error) {
+	if p.fset == nil {
+		return "", errors.New("no file set available")
+	}
+	var buf strings.Builder
+	if err := printer.Fprint(&buf, p.fset, expr); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
 
 // stringValue evaluates a string expression, resolving ui.LoadFile calls
