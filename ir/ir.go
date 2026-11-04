@@ -3,10 +3,6 @@ package ir
 // Program represents the parsed and analyzed Go program,
 // containing all information needed to generate the Android application.
 type Program struct {
-	Name       string
-	Packages   map[string]*Package
-	Entrypoint *Function
-
 	// UI represents the parsed widget tree from ui.Run (legacy single-page)
 	UI Widget
 	// Pages represents the parsed widget trees from ui.RunApp (multi-page)
@@ -45,27 +41,141 @@ type Page struct {
 	Root Widget
 }
 
-// Package represents a parsed Go package.
-type Package struct {
-	Name  string
-	Path  string
-	Types map[string]*Type
-	Funcs map[string]*Function
-}
-
-// Type represents a resolved Go type.
-type Type struct {
-	Name string
-}
-
-// Function represents a resolved Go function.
-type Function struct {
-	Name string
-}
-
 // Widget represents a node in the UI layout tree
 type Widget interface {
 	WidgetType() string
+}
+
+// ChildrenOf returns the child widgets of w, or nil when w is a leaf.
+//
+// It is intentionally defined next to the widget definitions: adding a widget
+// means updating this switch rather than hunting for every tree walk scattered
+// across the generators and linters.
+func ChildrenOf(w Widget) []Widget {
+	switch v := w.(type) {
+	case ColumnWidget:
+		return v.Children
+	case RowWidget:
+		return v.Children
+	case ScrollViewWidget:
+		return v.Children
+	case CardViewWidget:
+		return v.Children
+	}
+	return nil
+}
+
+// IDOf returns the identifier of w, or "" when the widget has none.
+func IDOf(w Widget) string {
+	switch v := w.(type) {
+	case ColumnWidget:
+		return v.ID
+	case RowWidget:
+		return v.ID
+	case TextViewWidget:
+		return v.ID
+	case ButtonWidget:
+		return v.ID
+	case TextFieldWidget:
+		return v.ID
+	case ImageWidget:
+		return v.ID
+	case AudioWidget:
+		return v.ID
+	case XMLView:
+		return v.ID
+	case VideoWidget:
+		return v.ID
+	case WebViewWidget:
+		return v.ID
+	case ScrollViewWidget:
+		return v.ID
+	case CardViewWidget:
+		return v.ID
+	case ProgressBarWidget:
+		return v.ID
+	case SwitchWidget:
+		return v.ID
+	}
+	return ""
+}
+
+// StyleOf returns the styling of w. Widgets without styling return the zero
+// value, which every consumer treats as "use the generator's default".
+func StyleOf(w Widget) Style {
+	switch v := w.(type) {
+	case ColumnWidget:
+		return v.Style
+	case RowWidget:
+		return v.Style
+	case TextViewWidget:
+		return v.Style
+	case ButtonWidget:
+		return v.Style
+	case TextFieldWidget:
+		return v.Style
+	case ImageWidget:
+		return v.Style
+	case XMLView:
+		return v.Style
+	case VideoWidget:
+		return v.Style
+	case WebViewWidget:
+		return v.Style
+	case ScrollViewWidget:
+		return v.Style
+	case CardViewWidget:
+		return v.Style
+	case ProgressBarWidget:
+		return v.Style
+	case SwitchWidget:
+		return v.Style
+	}
+	return Style{}
+}
+
+// CSSOf returns the inline CSS of w, or "" when the widget carries none.
+func CSSOf(w Widget) string {
+	switch v := w.(type) {
+	case ColumnWidget:
+		return v.CSS
+	case RowWidget:
+		return v.CSS
+	case TextViewWidget:
+		return v.CSS
+	case ButtonWidget:
+		return v.CSS
+	case TextFieldWidget:
+		return v.CSS
+	case ImageWidget:
+		return v.CSS
+	case XMLView:
+		return v.CSS
+	case VideoWidget:
+		return v.CSS
+	case WebViewWidget:
+		return v.CSS
+	case ScrollViewWidget:
+		return v.CSS
+	case CardViewWidget:
+		return v.CSS
+	case ProgressBarWidget:
+		return v.CSS
+	case SwitchWidget:
+		return v.CSS
+	}
+	return ""
+}
+
+// Walk visits w and, depth first, each of its descendants.
+func Walk(w Widget, fn func(Widget)) {
+	if w == nil {
+		return
+	}
+	fn(w)
+	for _, child := range ChildrenOf(w) {
+		Walk(child, fn)
+	}
 }
 
 type Animation struct {

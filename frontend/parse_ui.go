@@ -1,10 +1,13 @@
 package frontend
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/token"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -12,129 +15,489 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// ExtractUI parses the AST for ui.Run or ui.RunApp and extracts the widget tree, permissions,
-// and broadcast receiver declarations.
-func ExtractUI(pkgs []*packages.Package) (ir.Widget, []ir.Page, map[string]string, []string, []ir.BroadcastReceiverDecl, bool) {
-	events := make(map[string]string)
-	var rootWidget ir.Widget
-	var pages []ir.Page
-	var permissions []string
-	var receivers []ir.BroadcastReceiverDecl
-	hasVPN := false
+// DefaultAndroidImport is assumed when the app source does not import the
+// Go2APK android runtime under a different (vendored or forked) path.
+const DefaultAndroidImport = "github.com/Baba01hacker666/Go2APK/android"
+
+// UIProgram is everything the frontend can learn about an app by reading its
+// source: the widget tree, the events that tie widgets to Go handlers, and the
+// Android platform features the app declares.
+type UIProgram struct {
+	// Root is the widget tree passed to ui.Run, for single-page apps.
+	Root ir.Widget
+	// Pages are the screens passed to ui.RunApp, for multi-page apps.
+	Pages []ir.Page
+	// Events maps generated Android event names to Go handler names.
+	Events map[string]string
+	// Permissions are the manifest permissions the app declares.
+	Permissions []string
+	// Receivers are the broadcast receivers the app declares.
+	Receivers []ir.BroadcastReceiverDecl
+	// HasVPN reports whether the app starts a VPN service.
+	HasVPN bool
+	// AndroidImport is the import path the app uses for the Go2APK runtime.
+	AndroidImport string
+}
+
+// widgetParser holds the state of a single extraction pass.
+type widgetParser struct {
+	events map[string]string
+	errs   []error
+
+	root        ir.Widget
+	pages       []ir.Page
+	permissions []string
+	receivers   []ir.BroadcastReceiverDecl
+	hasVPN      bool
+
+	// dir is the directory of the file currently being parsed. Relative paths
+	// passed to ui.LoadFile resolve against it rather than against the
+	// directory go2apk happened to be invoked from.
+	dir string
+
+	// autoID counts widgets that need a generated ID so that every generated
+	// name stays unique and stable for the duration of the build.
+	autoID int
+}
+
+// ExtractUI parses the AST of the given packages looking for ui.Run, ui.RunApp
+// and the android package declarations, and turns them into a UIProgram.
+//
+// Only package main is inspected: that is where an application's entry point
+// and therefore its UI declaration must live. Problems found in the source are
+// reported together rather than one at a time, so a single run surfaces every
+// mistake.
+func ExtractUI(pkgs []*packages.Package) (UIProgram, error) {
+	p := &widgetParser{events: make(map[string]string)}
 
 	for _, pkg := range pkgs {
 		if pkg.Name != "main" {
 			continue
 		}
 		for _, file := range pkg.Syntax {
-			ast.Inspect(file, func(n ast.Node) bool {
-				call, ok := n.(*ast.CallExpr)
-				if !ok {
-					return true
+			p.dir = ""
+			if pkg.Fset != nil {
+				if pos := pkg.Fset.Position(file.Pos()); pos.Filename != "" {
+					p.dir = filepath.Dir(pos.Filename)
 				}
-
-				sel, ok := call.Fun.(*ast.SelectorExpr)
-				if !ok {
-					return true
-				}
-
-				id, ok := sel.X.(*ast.Ident)
-				if !ok || (id.Name != "ui" && id.Name != "android") {
-					return true
-				}
-
-				if id.Name == "ui" {
-					if sel.Sel.Name == "Run" {
-						fmt.Println("Found ui.Run call!")
-						if len(call.Args) > 0 {
-							rootWidget = parseWidget(call.Args[0], events)
-						}
-						return false
-					} else if sel.Sel.Name == "RunApp" {
-						fmt.Println("Found ui.RunApp call!")
-						for _, arg := range call.Args {
-							page := parsePage(arg, events)
-							if page.Name != "" {
-								pages = append(pages, page)
-							}
-						}
-						return false
-					}
-				}
-
-				if id.Name == "android" {
-					switch sel.Sel.Name {
-					case "Permission":
-						// android.Permission("android.permission.XYZ")
-						if len(call.Args) == 1 {
-							if perm := stringLit(call.Args[0]); perm != "" {
-								permissions = append(permissions, perm)
-							}
-						}
-
-					case "BroadcastReceiver":
-						// android.BroadcastReceiver(action, eventName, handler)
-						if len(call.Args) >= 2 {
-							action := stringLit(call.Args[0])
-							eventName := stringLit(call.Args[1])
-							if action != "" && eventName != "" {
-								receivers = append(receivers, ir.BroadcastReceiverDecl{
-									Name:     eventName,
-									Action:   action,
-									Exported: false,
-								})
-							}
-						}
-					case "StartVPN":
-						hasVPN = true
-					}
-				}
-
-				return true
-			})
+			}
+			p.inspect(file)
 		}
 	}
-	return rootWidget, pages, events, permissions, receivers, hasVPN
-}
 
-// stringLit extracts the string value from a basic string literal AST node.
-func stringLit(expr ast.Expr) string {
-	bl, ok := expr.(*ast.BasicLit)
-	if !ok || bl.Kind != token.STRING {
-		return ""
+	androidImport := detectAndroidImport(pkgs)
+	if err := p.err(); err != nil {
+		return UIProgram{}, err
 	}
-	return strings.Trim(bl.Value, "\"")
+
+	return UIProgram{
+		Root:          p.root,
+		Pages:         p.pages,
+		Events:        p.events,
+		Permissions:   p.permissions,
+		Receivers:     p.receivers,
+		HasVPN:        p.hasVPN,
+		AndroidImport: androidImport,
+	}, nil
 }
 
-func parsePage(expr ast.Expr, events map[string]string) ir.Page {
+func (p *widgetParser) inspect(file *ast.File) {
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		id, ok := sel.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		switch id.Name {
+		case "ui":
+			switch sel.Sel.Name {
+			case "Run":
+				if len(call.Args) > 0 {
+					p.root = p.widget(call.Args[0])
+				}
+				return false
+			case "RunApp":
+				for _, arg := range call.Args {
+					if page := p.page(arg); page.Name != "" {
+						p.pages = append(p.pages, page)
+					}
+				}
+				return false
+			}
+		case "android":
+			p.androidCall(sel.Sel.Name, call)
+		}
+		return true
+	})
+}
+
+func (p *widgetParser) androidCall(name string, call *ast.CallExpr) {
+	switch name {
+	case "Permission":
+		if len(call.Args) == 1 {
+			if perm, ok := p.stringValue(call.Args[0], "android.Permission"); ok && perm != "" {
+				p.permissions = append(p.permissions, perm)
+			}
+		}
+	case "BroadcastReceiver":
+		if len(call.Args) < 2 {
+			p.errorf("android.BroadcastReceiver requires (action, eventName, handler)")
+			return
+		}
+		action, okAction := p.stringValue(call.Args[0], "android.BroadcastReceiver action")
+		eventName, okEvent := p.stringValue(call.Args[1], "android.BroadcastReceiver eventName")
+		if !okAction || !okEvent {
+			return
+		}
+		if action == "" || eventName == "" {
+			p.errorf("android.BroadcastReceiver requires a non-empty action and event name")
+			return
+		}
+		p.receivers = append(p.receivers, ir.BroadcastReceiverDecl{
+			Name:     eventName,
+			Action:   action,
+			Exported: false,
+		})
+	case "StartVPN":
+		p.hasVPN = true
+	}
+}
+
+func (p *widgetParser) page(expr ast.Expr) ir.Page {
 	var page ir.Page
 	compLit, ok := expr.(*ast.CompositeLit)
 	if !ok {
 		return page
+	}
+	f := p.fields(compLit)
+	name, _ := f.str("Name")
+	root := f.widget("Root")
+	if name != "" && !javaClassNameRE.MatchString(name) {
+		p.errorf("page name %q is not a valid Android activity name; use letters, digits and underscores, starting with a letter", name)
+		return ir.Page{}
+	}
+	page.Name = name
+	page.Root = root
+	return page
+}
+
+// widget turns one composite literal into an IR widget. The literal is
+// recognised by its type name only, which mirrors how the ui package is meant
+// to be used and keeps the parser independent of type checking.
+func (p *widgetParser) widget(expr ast.Expr) ir.Widget {
+	compLit, ok := expr.(*ast.CompositeLit)
+	if !ok {
+		return nil
+	}
+	typeName := ""
+	switch t := compLit.Type.(type) {
+	case *ast.SelectorExpr:
+		typeName = t.Sel.Name
+	case *ast.Ident:
+		typeName = t.Name
+	}
+	if typeName == "" {
+		return nil
+	}
+	f := p.fields(compLit)
+	return p.buildWidget(typeName, f)
+}
+
+func (p *widgetParser) buildWidget(typeName string, f widgetFields) ir.Widget {
+	// Resolve the ID first: handlers are registered under a name derived from
+	// it, and it may have to be generated before they are recorded.
+	id := f.id(typeName)
+
+	switch typeName {
+	case "Column":
+		children, _ := f.children("Children")
+		return ir.ColumnWidget{ID: id, Style: f.style(), CSS: f.css(), Children: children}
+	case "Row":
+		children, _ := f.children("Children")
+		return ir.RowWidget{ID: id, Style: f.style(), CSS: f.css(), Children: children}
+	case "TextView":
+		text, _ := f.str("Text")
+		return ir.TextViewWidget{ID: id, Text: text, Style: f.style(), CSS: f.css()}
+	case "Button":
+		text, _ := f.str("Text")
+		return ir.ButtonWidget{ID: id, Text: text, Style: f.style(), CSS: f.css(),
+			OnClickFunc: f.handler("OnClick", typeName, "onclick")}
+	case "TextField":
+		placeholder, _ := f.str("Placeholder")
+		return ir.TextFieldWidget{ID: id, Placeholder: placeholder, Style: f.style(), CSS: f.css(),
+			OnChangedFunc: f.handler("OnChanged", typeName, "onchanged")}
+	case "Image":
+		src, _ := f.str("Src")
+		return ir.ImageWidget{ID: id, Src: src, Style: f.style(), CSS: f.css()}
+	case "Audio":
+		src, _ := f.str("Src")
+		autoPlay, _ := f.bool("AutoPlay")
+		return ir.AudioWidget{ID: id, Src: src, AutoPlay: autoPlay}
+	case "Video":
+		src, _ := f.str("Src")
+		return ir.VideoWidget{ID: id, Src: src, Style: f.style(), CSS: f.css()}
+	case "XMLView":
+		layout, _ := f.str("Layout")
+		return ir.XMLView{ID: id, Layout: layout, Style: f.style(), CSS: f.css()}
+	case "WebView":
+		src, _ := f.str("Src")
+		html, _ := f.str("HTML")
+		return ir.WebViewWidget{ID: id, Src: src, HTML: html, Style: f.style(), CSS: f.css()}
+	case "ScrollView":
+		children, _ := f.children("Children")
+		return ir.ScrollViewWidget{ID: id, Style: f.style(), CSS: f.css(), Children: children}
+	case "CardView":
+		children, _ := f.children("Children")
+		return ir.CardViewWidget{ID: id, Style: f.style(), CSS: f.css(), Children: children}
+	case "ProgressBar":
+		return ir.ProgressBarWidget{ID: id, Style: f.style(), CSS: f.css()}
+	case "Switch":
+		checked, _ := f.bool("Checked")
+		return ir.SwitchWidget{ID: id, Checked: checked, Style: f.style(), CSS: f.css(),
+			OnChangedFunc: f.handler("OnChanged", typeName, "onchanged")}
+	}
+	p.errorf("unknown widget ui.%s; if this is a typo it would otherwise be dropped silently", typeName)
+	return nil
+}
+
+// widgetFields gives typed, error-reporting access to the fields of a widget
+// composite literal.
+type widgetFields struct {
+	p    *widgetParser
+	kv   map[string]ast.Expr
+	kind string
+	// resolvedID caches the ID so that a generated ID is handed out once per
+	// widget even though several fields consult it.
+	resolvedID string
+	idChecked  bool
+}
+
+func (p *widgetParser) fields(compLit *ast.CompositeLit) widgetFields {
+	f := widgetFields{p: p, kv: make(map[string]ast.Expr, len(compLit.Elts))}
+	switch t := compLit.Type.(type) {
+	case *ast.SelectorExpr:
+		f.kind = t.Sel.Name
+	case *ast.Ident:
+		f.kind = t.Name
 	}
 	for _, elt := range compLit.Elts {
 		kv, ok := elt.(*ast.KeyValueExpr)
 		if !ok {
 			continue
 		}
-		keyIdent, ok := kv.Key.(*ast.Ident)
+		key, ok := kv.Key.(*ast.Ident)
 		if !ok {
 			continue
 		}
-		key := keyIdent.Name
-		if key == "Name" {
-			page.Name = stringLit(kv.Value)
-		} else if key == "Root" {
-			page.Root = parseWidget(kv.Value, events)
-		}
+		f.kv[key.Name] = kv.Value
 	}
-	return page
+	return f
 }
 
-func parseStyle(expr ast.Expr) ir.Style {
+// id resolves the widget's ID, generating one when the widget needs an identity
+// but the author did not supply one.
+//
+// An ID is required whenever the widget carries an event handler: the handler
+// is dispatched by name over JNI, and that name is derived from the ID. The
+// generator also emits the ID as a Java field name, so it must be a valid Java
+// identifier.
+func (f *widgetFields) id(kind string) string {
+	if f.idChecked {
+		return f.resolvedID
+	}
+	f.idChecked = true
+	raw, ok := f.p.stringValue(f.kv["ID"], "ID")
+	if ok && raw != "" {
+		if !javaIdentRE.MatchString(raw) {
+			f.p.errorf("widget ID %q is not a valid Java identifier; IDs are emitted as Java field names, so use letters, digits and underscores starting with a letter", raw)
+			return ""
+		}
+		if javaReserved[raw] {
+			f.p.errorf("widget ID %q is a Java reserved word and cannot be used as a field name", raw)
+			return ""
+		}
+		f.resolvedID = raw
+		return f.resolvedID
+	}
+	if raw != "" && !ok {
+		return ""
+	}
+	if f.needsID() {
+		f.p.autoID++
+		f.resolvedID = fmt.Sprintf("go2apk_%s_%d", strings.ToLower(kind), f.p.autoID)
+	}
+	return f.resolvedID
+}
+
+// needsID reports whether the widget declares an event handler and therefore
+// must have an identity even if the author did not give it one.
+func (f *widgetFields) needsID() bool {
+	for _, key := range []string{"OnClick", "OnChanged"} {
+		if _, ok := f.kv[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *widgetFields) str(key string) (string, error) {
+	expr, ok := f.kv[key]
+	if !ok {
+		return "", nil
+	}
+	v, ok := f.p.stringValue(expr, key)
+	if !ok {
+		return "", fmt.Errorf("%s must be a string literal", key)
+	}
+	return v, nil
+}
+
+func (f *widgetFields) bool(key string) (bool, error) {
+	expr, ok := f.kv[key]
+	if !ok {
+		return false, nil
+	}
+	id, ok := expr.(*ast.Ident)
+	if !ok {
+		f.p.errorf("%s must be the literal true or false", key)
+		return false, fmt.Errorf("%s must be a boolean literal", key)
+	}
+	switch id.Name {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	}
+	f.p.errorf("%s must be the literal true or false, got %q", key, id.Name)
+	return false, fmt.Errorf("%s must be a boolean literal", key)
+}
+
+func (f *widgetFields) style() ir.Style {
+	expr, ok := f.kv["Style"]
+	if !ok {
+		return ir.Style{}
+	}
+	return f.p.parseStyle(expr)
+}
+
+func (f *widgetFields) css() string {
+	v, _ := f.str("CSS")
+	return v
+}
+
+func (f *widgetFields) children(key string) ([]ir.Widget, error) {
+	expr, ok := f.kv[key]
+	if !ok {
+		return nil, nil
+	}
+	compLit, ok := expr.(*ast.CompositeLit)
+	if !ok {
+		f.p.errorf("%s must be a slice literal of ui.Widget values", key)
+		return nil, fmt.Errorf("%s must be a slice literal", key)
+	}
+	var children []ir.Widget
+	for _, elt := range compLit.Elts {
+		if w := f.p.widget(elt); w != nil {
+			children = append(children, w)
+		}
+	}
+	return children, nil
+}
+
+func (f *widgetFields) widget(key string) ir.Widget {
+	expr, ok := f.kv[key]
+	if !ok {
+		return nil
+	}
+	return f.p.widget(expr)
+}
+
+// handler records a Go function used as an event callback and returns its name.
+// The event name is derived from the widget ID, so this must run after id() has
+// assigned one.
+func (f *widgetFields) handler(key, kind, suffix string) string {
+	expr, ok := f.kv[key]
+	if !ok {
+		return ""
+	}
+	id, ok := expr.(*ast.Ident)
+	if !ok {
+		f.p.errorf("%s must be the name of a Go function in this package", key)
+		return ""
+	}
+	widgetID := f.resolvedID
+	if widgetID == "" {
+		f.p.errorf("%s on a %s requires a usable widget ID so the event can be dispatched", key, kind)
+		return ""
+	}
+	f.p.events[widgetID+"_"+suffix] = id.Name
+	return id.Name
+}
+
+// stringValue evaluates a string expression, resolving ui.LoadFile calls
+// relative to the file being parsed.
+func (p *widgetParser) stringValue(expr ast.Expr, what string) (string, bool) {
+	if expr == nil {
+		return "", true
+	}
+	switch v := expr.(type) {
+	case *ast.BasicLit:
+		if v.Kind != token.STRING {
+			p.errorf("%s must be a string literal", what)
+			return "", false
+		}
+		s, err := strconv.Unquote(v.Value)
+		if err != nil {
+			p.errorf("%s is not a valid string literal: %v", what, err)
+			return "", false
+		}
+		return s, true
+	case *ast.CallExpr:
+		if sel, ok := v.Fun.(*ast.SelectorExpr); ok {
+			if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "ui" && sel.Sel.Name == "LoadFile" {
+				if len(v.Args) != 1 {
+					p.errorf("ui.LoadFile takes exactly one argument")
+					return "", false
+				}
+				path, ok := p.stringValue(v.Args[0], "ui.LoadFile path")
+				if !ok || path == "" {
+					return "", false
+				}
+				return p.loadFile(path, what)
+			}
+		}
+	}
+	p.errorf("%s must be a string literal or ui.LoadFile(...)", what)
+	return "", false
+}
+
+// loadFile reads an asset referenced through ui.LoadFile. Relative paths are
+// resolved against the directory of the Go file that references them.
+func (p *widgetParser) loadFile(path, what string) (string, bool) {
+	resolved := path
+	if !filepath.IsAbs(resolved) && p.dir != "" {
+		resolved = filepath.Join(p.dir, path)
+	}
+	b, err := os.ReadFile(resolved)
+	if err != nil {
+		p.errorf("cannot read %s (%s): %v", what, resolved, err)
+		return "", false
+	}
+	return string(b), true
+}
+
+func (p *widgetParser) parseStyle(expr ast.Expr) ir.Style {
 	style := ir.Style{}
 	compLit, ok := expr.(*ast.CompositeLit)
 	if !ok {
+		p.errorf("Style must be a ui.Style literal")
 		return style
 	}
 	for _, elt := range compLit.Elts {
@@ -142,264 +505,212 @@ func parseStyle(expr ast.Expr) ir.Style {
 		if !ok {
 			continue
 		}
-		keyIdent, ok := kv.Key.(*ast.Ident)
+		key, ok := kv.Key.(*ast.Ident)
 		if !ok {
 			continue
 		}
-		key := keyIdent.Name
-		if bl, ok := kv.Value.(*ast.BasicLit); ok {
-			switch key {
-			case "BackgroundColor":
-				style.BackgroundColor = strings.Trim(bl.Value, "\"")
-			case "TextColor":
-				style.TextColor = strings.Trim(bl.Value, "\"")
-			case "TextSize":
-				style.TextSize, _ = strconv.Atoi(bl.Value)
-			case "Padding":
-				style.Padding, _ = strconv.Atoi(bl.Value)
-			case "Margin":
-				style.Margin, _ = strconv.Atoi(bl.Value)
-			case "Width":
-				style.Width, _ = strconv.Atoi(bl.Value)
-			case "Height":
-				style.Height, _ = strconv.Atoi(bl.Value)
-			case "Weight":
-				v, _ := strconv.ParseFloat(bl.Value, 32)
+		switch key.Name {
+		case "BackgroundColor", "TextColor":
+			v, ok := p.stringValue(kv.Value, "Style."+key.Name)
+			if ok {
+				if key.Name == "BackgroundColor" {
+					style.BackgroundColor = v
+				} else {
+					style.TextColor = v
+				}
+			}
+		case "TextSize", "Padding", "Margin":
+			v, ok := p.intValue(kv.Value, "Style."+key.Name)
+			if ok {
+				switch key.Name {
+				case "TextSize":
+					style.TextSize = v
+				case "Padding":
+					style.Padding = v
+				case "Margin":
+					style.Margin = v
+				}
+			}
+		case "Width", "Height":
+			v, ok := p.dimensionValue(kv.Value, "Style."+key.Name)
+			if ok {
+				if key.Name == "Width" {
+					style.Width = v
+				} else {
+					style.Height = v
+				}
+			}
+		case "Weight":
+			v, ok := p.floatValue(kv.Value, "Style."+key.Name)
+			if ok {
 				style.Weight = float32(v)
 			}
-		} else if sel, ok := kv.Value.(*ast.SelectorExpr); ok {
-			// e.g., ui.MatchParent or ui.WrapContent
-			if sel.Sel.Name == "MatchParent" {
-				if key == "Width" {
-					style.Width = -1
-				}
-				if key == "Height" {
-					style.Height = -1
-				}
-			} else if sel.Sel.Name == "WrapContent" {
-				if key == "Width" {
-					style.Width = -2
-				}
-				if key == "Height" {
-					style.Height = -2
-				}
+		case "Animation":
+			comp, ok := kv.Value.(*ast.CompositeLit)
+			if !ok {
+				p.errorf("Style.Animation must be a ui.Animation literal")
+				continue
 			}
-		} else if un, ok := kv.Value.(*ast.UnaryExpr); ok {
-			if un.Op == token.SUB {
-				if bl, ok := un.X.(*ast.BasicLit); ok {
-					val, _ := strconv.Atoi(bl.Value)
-					switch key {
-					case "Width":
-						style.Width = -val
-					case "Height":
-						style.Height = -val
-					}
-				}
-			}
-		} else if comp, ok := kv.Value.(*ast.CompositeLit); ok {
-			if key == "Animation" {
-				style.Animation = parseAnimation(comp)
-			}
+			style.Animation = p.parseAnimation(comp)
+		default:
+			p.errorf("unknown ui.Style field %q", key.Name)
 		}
 	}
 	return style
 }
 
-func parseAnimation(compLit *ast.CompositeLit) ir.Animation {
-	anim := ir.Animation{}
+func (p *widgetParser) intValue(expr ast.Expr, what string) (int, bool) {
+	n, err := p.numberValue(expr, what)
+	if err != nil {
+		p.errorf("%s must be an integer literal: %v", what, err)
+		return 0, false
+	}
+	return int(n), true
+}
+
+// dimensionValue accepts plain pixel values, the ui.MatchParent / ui.WrapContent
+// constants, and negative literals, all of which the ui package uses for sizing.
+func (p *widgetParser) dimensionValue(expr ast.Expr, what string) (int, bool) {
+	if sel, ok := selectorName(expr); ok {
+		switch sel {
+		case "MatchParent":
+			return -1, true
+		case "WrapContent":
+			return -2, true
+		}
+		p.errorf("%s must be an integer, ui.MatchParent or ui.WrapContent", what)
+		return 0, false
+	}
+	if un, ok := expr.(*ast.UnaryExpr); ok && un.Op == token.SUB {
+		n, err := p.numberValue(un.X, what)
+		if err != nil {
+			p.errorf("%s must be an integer literal: %v", what, err)
+			return 0, false
+		}
+		return -int(n), true
+	}
+	n, err := p.numberValue(expr, what)
+	if err != nil {
+		p.errorf("%s must be an integer literal: %v", what, err)
+		return 0, false
+	}
+	return int(n), true
+}
+
+func (p *widgetParser) floatValue(expr ast.Expr, what string) (float64, bool) {
+	n, err := p.numberValue(expr, what)
+	if err != nil {
+		p.errorf("%s must be a numeric literal: %v", what, err)
+		return 0, false
+	}
+	return n, true
+}
+
+func (p *widgetParser) numberValue(expr ast.Expr, what string) (float64, error) {
+	lit, ok := expr.(*ast.BasicLit)
+	if !ok || (lit.Kind != token.INT && lit.Kind != token.FLOAT) {
+		return 0, fmt.Errorf("expected a numeric literal")
+	}
+	return strconv.ParseFloat(lit.Value, 64)
+}
+
+func (p *widgetParser) parseAnimation(compLit *ast.CompositeLit) ir.Animation {
+	var anim ir.Animation
 	for _, elt := range compLit.Elts {
 		kv, ok := elt.(*ast.KeyValueExpr)
 		if !ok {
 			continue
 		}
-		keyIdent, ok := kv.Key.(*ast.Ident)
+		key, ok := kv.Key.(*ast.Ident)
 		if !ok {
 			continue
 		}
-		key := keyIdent.Name
-		if bl, ok := kv.Value.(*ast.BasicLit); ok {
-			switch key {
-			case "Type":
-				anim.Type = strings.Trim(bl.Value, "\"")
-			case "Duration":
-				anim.Duration, _ = strconv.Atoi(bl.Value)
-			case "Delay":
-				anim.Delay, _ = strconv.Atoi(bl.Value)
+		switch key.Name {
+		case "Type":
+			v, ok := p.stringValue(kv.Value, "Animation.Type")
+			if ok {
+				anim.Type = v
 			}
-		} else if id, ok := kv.Value.(*ast.Ident); ok {
-			if key == "Loop" {
-				anim.Loop = (id.Name == "true")
+		case "Duration", "Delay":
+			v, ok := p.intValue(kv.Value, "Animation."+key.Name)
+			if ok {
+				if key.Name == "Duration" {
+					anim.Duration = v
+				} else {
+					anim.Delay = v
+				}
 			}
+		case "Loop":
+			v, ok := p.boolValue(kv.Value, "Animation.Loop")
+			if ok {
+				anim.Loop = v
+			}
+		default:
+			p.errorf("unknown ui.Animation field %q", key.Name)
 		}
 	}
 	return anim
 }
 
-func resolveString(expr ast.Expr) (string, bool) {
-	if bl, ok := expr.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-		return bl.Value[1 : len(bl.Value)-1], true
+func (p *widgetParser) boolValue(expr ast.Expr, what string) (bool, bool) {
+	id, ok := expr.(*ast.Ident)
+	if !ok || (id.Name != "true" && id.Name != "false") {
+		p.errorf("%s must be the literal true or false", what)
+		return false, false
 	}
-	if call, ok := expr.(*ast.CallExpr); ok {
-		if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
-			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "ui" && sel.Sel.Name == "LoadFile" {
-				if len(call.Args) == 1 {
-					if pathStr, ok := resolveString(call.Args[0]); ok {
-						if b, err := os.ReadFile(pathStr); err == nil {
-							return string(b), true
-						} else {
-							fmt.Printf("Warning: failed to load file %s: %v\n", pathStr, err)
-						}
-					}
-				}
-			}
-		}
-	}
-	return "", false
+	return id.Name == "true", true
 }
 
-func parseComposite(compLit *ast.CompositeLit, events map[string]string) map[string]interface{} {
-	fields := make(map[string]interface{})
-	for _, elt := range compLit.Elts {
-		kv, ok := elt.(*ast.KeyValueExpr)
-		if !ok {
-			continue
-		}
-		keyIdent, ok := kv.Key.(*ast.Ident)
-		if !ok {
-			continue
-		}
-		key := keyIdent.Name
-		if val, ok := resolveString(kv.Value); ok {
-			fields[key] = val
-		} else if key == "Style" {
-			fields["Style"] = parseStyle(kv.Value)
-		} else if key == "Children" {
-			var children []ir.Widget
-			if cl, ok := kv.Value.(*ast.CompositeLit); ok {
-				for _, childElt := range cl.Elts {
-					if childWidget := parseWidget(childElt, events); childWidget != nil {
-						children = append(children, childWidget)
-					}
-				}
-			}
-			fields["Children"] = children
-		} else if key == "OnClick" || key == "OnChanged" {
-			if id, ok := kv.Value.(*ast.Ident); ok {
-				fields[key] = id.Name
-			}
-		} else if id, ok := kv.Value.(*ast.Ident); ok && (id.Name == "true" || id.Name == "false") {
-			fields[key] = id.Name == "true"
-		}
-	}
-	return fields
+func (p *widgetParser) errorf(format string, args ...any) {
+	p.errs = append(p.errs, fmt.Errorf(format, args...))
 }
 
-func parseWidget(expr ast.Expr, events map[string]string) ir.Widget {
-	compLit, ok := expr.(*ast.CompositeLit)
+func (p *widgetParser) err() error {
+	return errors.Join(p.errs...)
+}
+
+func selectorName(expr ast.Expr) (string, bool) {
+	sel, ok := expr.(*ast.SelectorExpr)
 	if !ok {
-		return nil
+		return "", false
 	}
-
-	var typeName string
-	switch t := compLit.Type.(type) {
-	case *ast.SelectorExpr:
-		typeName = t.Sel.Name
-	case *ast.Ident:
-		typeName = t.Name
-	}
-
-	fields := parseComposite(compLit, events)
-	id, _ := fields["ID"].(string)
-	style, _ := fields["Style"].(ir.Style)
-	css, _ := fields["CSS"].(string)
-
-	switch typeName {
-	case "Column":
-		col := ir.ColumnWidget{ID: id, Style: style, CSS: css}
-		if children, ok := fields["Children"].([]ir.Widget); ok {
-			col.Children = children
-		}
-		return col
-	case "Row":
-		row := ir.RowWidget{ID: id, Style: style, CSS: css}
-		if children, ok := fields["Children"].([]ir.Widget); ok {
-			row.Children = children
-		}
-		return row
-	case "TextView":
-		tv := ir.TextViewWidget{ID: id, Style: style, CSS: css}
-		tv.Text, _ = fields["Text"].(string)
-		return tv
-	case "Button":
-		btn := ir.ButtonWidget{ID: id, Style: style, CSS: css}
-		btn.Text, _ = fields["Text"].(string)
-		if onClick, ok := fields["OnClick"].(string); ok {
-			btn.OnClickFunc = onClick
-			if id != "" {
-				events[id+"_onclick"] = onClick
-			}
-		}
-		return btn
-	case "TextField":
-		tf := ir.TextFieldWidget{ID: id, Style: style, CSS: css}
-		tf.Placeholder, _ = fields["Placeholder"].(string)
-		if onChanged, ok := fields["OnChanged"].(string); ok {
-			tf.OnChangedFunc = onChanged
-			if id != "" {
-				events[id+"_onchanged"] = onChanged
-			}
-		}
-		return tf
-	case "Image":
-		img := ir.ImageWidget{ID: id, Style: style, CSS: css}
-		img.Src, _ = fields["Src"].(string)
-		return img
-	case "Audio":
-		aud := ir.AudioWidget{ID: id}
-		aud.Src, _ = fields["Src"].(string)
-		if autoPlay, ok := fields["AutoPlay"].(bool); ok {
-			aud.AutoPlay = autoPlay
-		}
-		return aud
-	case "Video":
-		vid := ir.VideoWidget{ID: id, Style: style, CSS: css}
-		vid.Src, _ = fields["Src"].(string)
-		return vid
-	case "XMLView":
-		layout, _ := fields["Layout"].(string)
-		return ir.XMLView{ID: id, Layout: layout, Style: style, CSS: css}
-	case "WebView":
-		wv := ir.WebViewWidget{ID: id, Style: style, CSS: css}
-		wv.Src, _ = fields["Src"].(string)
-		wv.HTML, _ = fields["HTML"].(string)
-		return wv
-	case "ScrollView":
-		sv := ir.ScrollViewWidget{ID: id, Style: style, CSS: css}
-		if children, ok := fields["Children"].([]ir.Widget); ok {
-			sv.Children = children
-		}
-		return sv
-	case "CardView":
-		cv := ir.CardViewWidget{ID: id, Style: style, CSS: css}
-		if children, ok := fields["Children"].([]ir.Widget); ok {
-			cv.Children = children
-		}
-		return cv
-	case "ProgressBar":
-		pb := ir.ProgressBarWidget{ID: id, Style: style, CSS: css}
-		return pb
-	case "Switch":
-		sw := ir.SwitchWidget{ID: id, Style: style, CSS: css}
-		if checked, ok := fields["Checked"].(bool); ok {
-			sw.Checked = checked
-		}
-		if onChanged, ok := fields["OnChanged"].(string); ok {
-			sw.OnChangedFunc = onChanged
-			if id != "" {
-				events[id+"_onchanged"] = onChanged
-			}
-		}
-		return sw
-	}
-	return nil
+	return sel.Sel.Name, true
 }
+
+// detectAndroidImport finds the import path the app uses for the Go2APK android
+// runtime, so generated code refers to the same package the app is built
+// against (which may be a fork or a vendored copy).
+func detectAndroidImport(pkgs []*packages.Package) string {
+	for _, pkg := range pkgs {
+		for _, file := range pkg.Syntax {
+			for _, imp := range file.Imports {
+				path, err := strconv.Unquote(imp.Path.Value)
+				if err != nil {
+					continue
+				}
+				if path == DefaultAndroidImport || strings.HasSuffix(path, "/Go2APK/android") {
+					return path
+				}
+			}
+		}
+	}
+	return DefaultAndroidImport
+}
+
+var (
+	javaIdentRE     = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	javaClassNameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	javaReserved    = map[string]bool{
+		"abstract": true, "assert": true, "boolean": true, "break": true, "byte": true,
+		"case": true, "catch": true, "char": true, "class": true, "const": true,
+		"continue": true, "default": true, "do": true, "double": true, "else": true,
+		"enum": true, "extends": true, "final": true, "finally": true, "float": true,
+		"for": true, "goto": true, "if": true, "implements": true, "import": true,
+		"instanceof": true, "int": true, "interface": true, "long": true, "native": true,
+		"new": true, "package": true, "private": true, "protected": true, "public": true,
+		"return": true, "short": true, "static": true, "strictfp": true, "super": true,
+		"switch": true, "synchronized": true, "this": true, "throw": true, "throws": true,
+		"transient": true, "try": true, "void": true, "volatile": true, "while": true,
+		"true": true, "false": true, "null": true,
+	}
+)

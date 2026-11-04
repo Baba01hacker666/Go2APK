@@ -10,7 +10,8 @@ import (
 // RenderEventsGen generates a Go init file that registers event handlers dynamically.
 func RenderEventsGen(prog *ir.Program) string {
 	var b strings.Builder
-	b.WriteString("package main\n\n")
+	b.WriteString(GeneratedFileHeader)
+	b.WriteString("\npackage main\n\n")
 
 	if prog != nil && len(prog.Events) > 0 {
 		importPath := prog.AndroidImport
@@ -24,7 +25,7 @@ func RenderEventsGen(prog *ir.Program) string {
 		}
 		b.WriteString("}\n")
 	} else {
-		b.WriteString("// No events to register\n")
+		b.WriteString("// This app declares no events.\n")
 	}
 
 	return b.String()

@@ -10,10 +10,11 @@ func RenderJNIExports(pkgName string, androidImport string) string {
 	if androidImport == "" {
 		androidImport = "github.com/Baba01hacker666/Go2APK/android"
 	}
-	
+
 	jniPrefix := "Java_" + strings.ReplaceAll(pkgName, ".", "_") + "_NativeBridge_"
-	
-	return fmt.Sprintf(`//go:build android && cgo
+
+	return fmt.Sprintf(`%s
+//go:build android && cgo
 package main
 
 // #include <jni.h>
@@ -38,5 +39,5 @@ func %sonPermissionResult(env *C.JNIEnv, clazz C.jclass, permission C.jstring, g
 func %sonVpnEstablished(env *C.JNIEnv, clazz C.jclass, fd C.jint) {
 	android.Exported_onVpnEstablished(unsafe.Pointer(env), unsafe.Pointer(clazz), int(fd))
 }
-`, androidImport, jniPrefix, jniPrefix, jniPrefix, jniPrefix, jniPrefix, jniPrefix)
+`, GeneratedFileHeader, androidImport, jniPrefix, jniPrefix, jniPrefix, jniPrefix, jniPrefix, jniPrefix)
 }

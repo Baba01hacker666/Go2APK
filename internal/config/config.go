@@ -2,8 +2,11 @@ package config
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -65,14 +68,16 @@ func Load(path string) (Config, error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
+	lineNo := 0
 	for scanner.Scan() {
+		lineNo++
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
 		key, value, ok := strings.Cut(line, ":")
 		if !ok {
-			return cfg, fmt.Errorf("invalid config line %q; expected key: value", line)
+			return cfg, fmt.Errorf("%s:%d: invalid line %q; expected key: value", path, lineNo, line)
 		}
 		key = strings.TrimSpace(key)
 		value = strings.Trim(strings.TrimSpace(value), "\"'")
@@ -101,12 +106,86 @@ func Load(path string) (Config, error) {
 			cfg.GoBuildTags = splitCSV(value)
 		case "obfuscate":
 			cfg.Obfuscate, err = atob(key, value)
+		default:
+			return cfg, fmt.Errorf("%s:%d: unknown key %q", path, lineNo, key)
 		}
 		if err != nil {
-			return cfg, err
+			return cfg, fmt.Errorf("%s:%d: %w", path, lineNo, err)
 		}
 	}
-	return cfg, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return cfg, err
+	}
+	return cfg, cfg.Validate()
+}
+
+// Validate checks that the configuration can produce a buildable Android
+// project. Catching a bad package name or an impossible SDK range here is far
+// cheaper than reading it out of a Gradle failure later.
+func (c Config) Validate() error {
+	if strings.TrimSpace(c.Name) == "" {
+		return errors.New("name must not be empty")
+	}
+	if !javaPackageRE.MatchString(c.Package) {
+		return fmt.Errorf("package %q is not a valid Android package name; expected lower-case dot-separated segments such as com.example.app", c.Package)
+	}
+	for _, segment := range strings.Split(c.Package, ".") {
+		if javaReservedWords[segment] {
+			return fmt.Errorf("package %q uses the Java reserved word %q in a segment", c.Package, segment)
+		}
+	}
+	if strings.TrimSpace(c.Version) == "" {
+		return errors.New("version must not be empty")
+	}
+	if c.MinSDK < minSupportedSDK {
+		return fmt.Errorf("min_sdk %d is below the minimum supported value of %d", c.MinSDK, minSupportedSDK)
+	}
+	if c.TargetSDK < c.MinSDK {
+		return fmt.Errorf("target_sdk %d must be greater than or equal to min_sdk %d", c.TargetSDK, c.MinSDK)
+	}
+	if _, ok := orientations[c.Orientation]; !ok {
+		return fmt.Errorf("orientation %q is not one of %s", c.Orientation, strings.Join(sortedOrientations(), ", "))
+	}
+	if strings.TrimSpace(c.Source) == "" {
+		return errors.New("source must name the directory holding the app's Go code")
+	}
+	return nil
+}
+
+// minSupportedSDK is the oldest API level the Android Gradle Plugin the
+// generated build.gradle pins will accept.
+const minSupportedSDK = 21
+
+var javaPackageRE = regexp.MustCompile(`^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$`)
+
+var orientations = map[string]bool{
+	"unspecified": true, "behind": true, "fullSensor": true, "fullUser": true,
+	"landscape": true, "locked": true, "nosensor": true, "portrait": true,
+	"reverseLandscape": true, "reversePortrait": true, "sensor": true,
+	"sensorLandscape": true, "sensorPortrait": true, "user": true,
+	"userLandscape": true, "userPortrait": true,
+}
+
+func sortedOrientations() []string {
+	out := make([]string, 0, len(orientations))
+	for name := range orientations {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+var javaReservedWords = map[string]bool{
+	"abstract": true, "assert": true, "boolean": true, "break": true, "byte": true,
+	"case": true, "catch": true, "char": true, "class": true, "const": true,
+	"continue": true, "default": true, "do": true, "double": true, "else": true,
+	"enum": true, "extends": true, "final": true, "finally": true, "float": true,
+	"for": true, "goto": true, "if": true, "implements": true, "import": true,
+	"instanceof": true, "int": true, "interface": true, "long": true, "native": true,
+	"new": true, "package": true, "private": true, "protected": true, "public": true,
+	"return": true, "short": true, "static": true, "strictfp": true, "super": true,
+	"switch": true, "synchronized": true, "this": true, "throw": true, "throws": true,
+	"transient": true, "try": true, "void": true, "volatile": true, "while": true,
 }
 
 func splitCSV(value string) []string {

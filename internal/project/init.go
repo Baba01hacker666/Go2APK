@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/Baba01hacker666/Go2APK/internal/android"
@@ -21,11 +22,11 @@ func Init(root string, force bool) error {
 	nativeBridgePath := filepath.ToSlash(filepath.Join(javaDir, "NativeBridge.java"))
 	files := map[string]string{
 		"go2apk.yaml": renderConfig(cfg),
-		"android/settings.gradle": `pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+		"android/settings.gradle": fmt.Sprintf(`pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
 dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-rootProject.name = "Go2APKCalculator"
+rootProject.name = %q
 include ':app'
-`,
+`, gradleProjectName(cfg.Name)),
 		"android/build.gradle": `plugins {
     id 'com.android.application' version '8.5.2' apply false
 }
@@ -141,6 +142,38 @@ echo "Build complete."
 	return nil
 }
 
+// gradleProjectName turns a human-readable app name into something Gradle
+// accepts as rootProject.name, which may not contain path separators or the
+// characters that are reserved on common filesystems.
+func gradleProjectName(name string) string {
+	out := gradleUnsafeChars.ReplaceAllString(strings.TrimSpace(name), "")
+	out = strings.Trim(out, " .")
+	if out == "" {
+		return "Go2APKApp"
+	}
+	return out
+}
+
+var gradleUnsafeChars = regexp.MustCompile(`[\\/:<>"?*|]+`)
+
 func renderConfig(cfg config.Config) string {
-	return fmt.Sprintf("name: %s\npackage: %s\nversion: %s\nmin_sdk: %d\ntarget_sdk: %d\norientation: %s\ntheme: %s\nsource: %s\n# Optional comma-separated folders for split UI/logic packages, for example: ./app/ui, ./app/logic\nsource_dirs: %s\n# Optional Android Maven artifacts, for example: androidx.appcompat:appcompat:1.7.0, com.google.android.material:material:1.12.0\ngradle_dependencies: %s\n# Optional Go build tags passed by your own build scripts.\ngo_build_tags: %s\nobfuscate: %t\n", cfg.Name, cfg.Package, cfg.Version, cfg.MinSDK, cfg.TargetSDK, cfg.Orientation, cfg.Theme, cfg.Source, strings.Join(cfg.SourceDirs, ", "), strings.Join(cfg.GradleDependencies, ", "), strings.Join(cfg.GoBuildTags, ", "), cfg.Obfuscate)
+	return fmt.Sprintf(`# Go2APK project configuration. See README.md for the full reference.
+name: %q
+package: %q
+version: %q
+min_sdk: %d
+target_sdk: %d
+orientation: %q
+theme: %q
+source: %q
+# Optional comma-separated folders for split UI/logic packages, for example: ./app/ui, ./app/logic
+source_dirs: %q
+# Optional Android Maven artifacts, for example: androidx.appcompat:appcompat:1.7.0
+gradle_dependencies: %q
+# Optional Go build tags passed by your own build scripts.
+go_build_tags: %q
+obfuscate: %t
+`, cfg.Name, cfg.Package, cfg.Version, cfg.MinSDK, cfg.TargetSDK, cfg.Orientation, cfg.Theme,
+		cfg.Source, strings.Join(cfg.SourceDirs, ", "), strings.Join(cfg.GradleDependencies, ", "),
+		strings.Join(cfg.GoBuildTags, ", "), cfg.Obfuscate)
 }

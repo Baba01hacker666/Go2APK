@@ -1,3 +1,5 @@
+// Package builder turns a Go2APK project into Android sources and, when the
+// toolchain is available, into APK artifacts.
 package builder
 
 import (
@@ -11,6 +13,7 @@ import (
 	"github.com/Baba01hacker666/Go2APK/internal/android"
 	"github.com/Baba01hacker666/Go2APK/internal/config"
 	"github.com/Baba01hacker666/Go2APK/internal/gradle"
+	"github.com/Baba01hacker666/Go2APK/ir"
 )
 
 // Options controls build-time behavior.
@@ -24,111 +27,28 @@ func Check(root string) error {
 	if err != nil {
 		return err
 	}
-	f := frontend.New()
-	prog, err := f.BuildIRDirs(resolveSources(root, cfg))
-	if err != nil {
+	if _, err := parseProgram(root, cfg); err != nil {
 		return fmt.Errorf("syntax check failed: %w", err)
 	}
-	LintProgram(prog)
 	fmt.Println("Syntax check passed.")
 	return nil
 }
 
-func prepareDynamicFiles(root string, cfg config.Config) error {
-	f := frontend.New()
-	prog, err := f.BuildIRDirs(resolveSources(root, cfg))
-	if err != nil {
-		return fmt.Errorf("frontend parsing failed: %w", err)
-	}
-	LintProgram(prog)
-	if prog != nil {
-		javaDir := filepath.Join(root, "android", "app", "src", "main", "java", filepath.FromSlash(strings.ReplaceAll(cfg.Package, ".", "/")))
-		if err := os.MkdirAll(javaDir, 0o755); err != nil {
-			return err
-		}
-		if err := os.WriteFile(filepath.Join(javaDir, "Go2ApkActivity.java"), []byte(android.RenderGo2ApkActivity(cfg)), 0o644); err != nil {
-			return err
-		}
-		if len(prog.Pages) > 0 {
-			for i, page := range prog.Pages {
-				activityName := page.Name
-				if i == 0 {
-					activityName = "MainActivity"
-				}
-				if err := os.WriteFile(filepath.Join(javaDir, activityName+".java"), []byte(android.RenderDynamicActivity(cfg, activityName, page.Root)), 0o644); err != nil {
-					return err
-				}
-			}
-		} else {
-			if err := os.WriteFile(filepath.Join(javaDir, "MainActivity.java"), []byte(android.RenderDynamicActivity(cfg, "MainActivity", prog.UI)), 0o644); err != nil {
-				return err
-			}
-		}
-		if err := os.WriteFile(filepath.Join(javaDir, "NativeBridge.java"), []byte(android.RenderNativeBridge(cfg)), 0o644); err != nil {
-			return err
-		}
-		// Generate broadcast receiver class if needed
-		if receiverCode := android.RenderBroadcastReceiver(cfg, prog.Receivers); receiverCode != "" {
-			if err := os.WriteFile(filepath.Join(javaDir, "Go2APKBroadcastReceiver.java"), []byte(receiverCode), 0o644); err != nil {
-				return err
-			}
-		}
-		// Generate VPN service class if needed
-		if prog.HasVPN {
-			if err := os.WriteFile(filepath.Join(javaDir, "Go2ApkVpnService.java"), []byte(android.RenderVpnService(cfg)), 0o644); err != nil {
-				return err
-			}
-		}
-		// Regenerate manifest to inject permissions and broadcast receivers
-		manifestDir := filepath.Join(root, "android", "app", "src", "main")
-		if err := os.MkdirAll(manifestDir, 0o755); err != nil {
-			return err
-		}
-		if err := os.WriteFile(filepath.Join(manifestDir, "AndroidManifest.xml"), []byte(android.RenderManifest(cfg, prog)), 0o644); err != nil {
-			return err
-		}
-		if err := os.WriteFile(filepath.Join(root, cfg.Source, "events_gen.go"), []byte(android.RenderEventsGen(prog)), 0o644); err != nil {
-			return err
-		}
-		if err := os.WriteFile(filepath.Join(root, cfg.Source, "jni_exports_gen.go"), []byte(android.RenderJNIExports(cfg.Package, prog.AndroidImport)), 0o644); err != nil {
-			return err
-		}
-
-		// Copy assets if they exist
-		userAssetsDir := filepath.Join(root, cfg.Source, "assets")
-		if stat, err := os.Stat(userAssetsDir); err == nil && stat.IsDir() {
-			destAssetsDir := filepath.Join(root, "android", "app", "src", "main", "assets")
-			if err := copyDir(userAssetsDir, destAssetsDir); err != nil {
-				return fmt.Errorf("failed to copy assets: %w", err)
-			}
-		}
-
-		// Copy res/xml if they exist
-		userResDir := filepath.Join(root, cfg.Source, "res")
-		if stat, err := os.Stat(userResDir); err == nil && stat.IsDir() {
-			destResDir := filepath.Join(root, "android", "app", "src", "main", "res")
-			if err := copyDir(userResDir, destResDir); err != nil {
-				return fmt.Errorf("failed to copy res: %w", err)
-			}
-		}
-	}
-	return nil
-}
-
-// Generate generates the Java code and Android bindings without compiling the APK.
+// Generate regenerates the Android project from the app's Go source without
+// invoking Gradle.
 func Generate(root string) error {
 	cfg, err := loadConfig(root)
 	if err != nil {
 		return err
 	}
-	if err := prepareDynamicFiles(root, cfg); err != nil {
+	if _, err := prepareDynamicFiles(root, cfg); err != nil {
 		return err
 	}
-	fmt.Println("Generated Java code successfully.")
+	fmt.Println("Generated Android sources.")
 	return nil
 }
 
-// Build validates the generated project and prepares debug APK outputs.
+// Build validates the generated project and produces a debug APK.
 func Build(root string, opts ...Options) error {
 	cfg, err := loadConfig(root)
 	if err != nil {
@@ -138,28 +58,21 @@ func Build(root string, opts ...Options) error {
 	if err := require(filepath.Join(root, "android", "app", "build.gradle")); err != nil {
 		return err
 	}
-
-	if err := prepareDynamicFiles(root, cfg); err != nil {
+	if _, err := prepareDynamicFiles(root, cfg); err != nil {
 		return err
 	}
 
-	if cfg.Obfuscate {
-		if err := writeObfuscatedGradle(root, cfg); err != nil {
-			return err
-		}
-	}
 	out := filepath.Join(root, "dist", "debug")
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
 	if err := runGradle(root, "assembleDebug"); err != nil {
-		os.WriteFile(filepath.Join(out, "README.txt"), []byte(fmt.Sprintf("Debug build failed: %v\n", err)), 0o644)
-		return fmt.Errorf("gradle build failed: %w", err)
+		return fmt.Errorf("debug build failed: %w", err)
 	}
 	return copyArtifacts(filepath.Join(root, "android", "app", "build", "outputs", "apk", "debug"), out)
 }
 
-// Release prepares release APK/AAB outputs.
+// Release produces release APK and AAB artifacts.
 func Release(root string, opts ...Options) error {
 	cfg, err := loadConfig(root)
 	if err != nil {
@@ -169,23 +82,16 @@ func Release(root string, opts ...Options) error {
 	if err := require(filepath.Join(root, "android", "app", "build.gradle")); err != nil {
 		return err
 	}
-
-	if err := prepareDynamicFiles(root, cfg); err != nil {
+	if _, err := prepareDynamicFiles(root, cfg); err != nil {
 		return err
 	}
 
-	if cfg.Obfuscate {
-		if err := writeObfuscatedGradle(root, cfg); err != nil {
-			return err
-		}
-	}
 	out := filepath.Join(root, "dist", "release")
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
 	if err := runGradle(root, "assembleRelease", "bundleRelease"); err != nil {
-		os.WriteFile(filepath.Join(out, "README.txt"), []byte(fmt.Sprintf("Release build failed: %v\n", err)), 0o644)
-		return fmt.Errorf("gradle build failed: %w", err)
+		return fmt.Errorf("release build failed: %w", err)
 	}
 	if err := copyArtifacts(filepath.Join(root, "android", "app", "build", "outputs", "apk", "release"), out); err != nil {
 		return err
@@ -196,6 +102,154 @@ func Release(root string, opts ...Options) error {
 // Clean removes generated build artifacts.
 func Clean(root string) error {
 	return os.RemoveAll(filepath.Join(root, "dist"))
+}
+
+// Preview renders an HTML approximation of the app's UI so a layout can be
+// checked in a browser without the Android SDK.
+func Preview(root string) error {
+	cfg, err := loadConfig(root)
+	if err != nil {
+		return err
+	}
+	prog, err := parseProgram(root, cfg)
+	if err != nil {
+		return fmt.Errorf("frontend parsing failed: %w", err)
+	}
+	outPath := filepath.Join(root, "preview.html")
+	if err := os.WriteFile(outPath, []byte(android.RenderPreviewHTML(cfg, prog)), 0o644); err != nil {
+		return fmt.Errorf("failed to write preview.html: %w", err)
+	}
+	fmt.Printf("Wrote UI preview to %s\nOpen it in a browser to check the layout.\n", outPath)
+	return nil
+}
+
+// parseProgram reads the app's Go source into the IR.
+func parseProgram(root string, cfg config.Config) (*ir.Program, error) {
+	prog, err := frontend.New().BuildIRDirs(resolveSources(root, cfg))
+	if err != nil {
+		return nil, err
+	}
+	ReportWarnings(os.Stderr, LintProgram(prog))
+	return prog, nil
+}
+
+// prepareDynamicFiles regenerates every file that is derived from the app's
+// source: the Java activities, the manifest, the Gradle script and the two Go
+// files that wire up JNI callbacks.
+//
+// It returns the extra Android dependencies the generated code needs.
+func prepareDynamicFiles(root string, cfg config.Config) ([]string, error) {
+	prog, err := parseProgram(root, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("frontend parsing failed: %w", err)
+	}
+
+	extraDeps := android.RequiredDependencies(prog)
+
+	javaDir := filepath.Join(root, "android", "app", "src", "main", "java", filepath.FromSlash(strings.ReplaceAll(cfg.Package, ".", "/")))
+	if err := os.MkdirAll(javaDir, 0o755); err != nil {
+		return nil, err
+	}
+	if err := write(filepath.Join(javaDir, "Go2ApkActivity.java"), android.RenderGo2ApkActivity(cfg)); err != nil {
+		return nil, err
+	}
+	if err := write(filepath.Join(javaDir, "NativeBridge.java"), android.RenderNativeBridge(cfg)); err != nil {
+		return nil, err
+	}
+
+	switch {
+	case len(prog.Pages) > 0:
+		for i, page := range prog.Pages {
+			activityName := page.Name
+			if i == 0 {
+				activityName = "MainActivity"
+			}
+			body := android.RenderDynamicActivity(cfg, activityName, page.Root)
+			if err := write(filepath.Join(javaDir, activityName+".java"), body); err != nil {
+				return nil, err
+			}
+		}
+	default:
+		body := android.RenderDynamicActivity(cfg, "MainActivity", prog.UI)
+		if err := write(filepath.Join(javaDir, "MainActivity.java"), body); err != nil {
+			return nil, err
+		}
+	}
+
+	// Optional platform classes, only emitted when the app declares them.
+	if code := android.RenderBroadcastReceiver(cfg, prog.Receivers); code != "" {
+		if err := write(filepath.Join(javaDir, "Go2APKBroadcastReceiver.java"), code); err != nil {
+			return nil, err
+		}
+	}
+	if prog.HasVPN {
+		if err := write(filepath.Join(javaDir, "Go2ApkVpnService.java"), android.RenderVpnService(cfg)); err != nil {
+			return nil, err
+		}
+	}
+
+	manifestDir := filepath.Join(root, "android", "app", "src", "main")
+	if err := os.MkdirAll(manifestDir, 0o755); err != nil {
+		return nil, err
+	}
+	if err := write(filepath.Join(manifestDir, "AndroidManifest.xml"), android.RenderManifest(cfg, prog)); err != nil {
+		return nil, err
+	}
+
+	// The Gradle script is derived too: it has to carry the dependencies the
+	// generated Java needs, so regenerating it keeps the two in step.
+	if err := write(filepath.Join(root, "android", "app", "build.gradle"), android.RenderBuildGradle(cfg, extraDeps...)); err != nil {
+		return nil, err
+	}
+	if err := write(filepath.Join(root, "android", "app", "proguard-rules.pro"), android.RenderProguardRules()); err != nil {
+		return nil, err
+	}
+
+	if err := writeGeneratedGo(filepath.Join(root, cfg.Source, "events_gen.go"),
+		len(prog.Events) > 0, android.RenderEventsGen(prog)); err != nil {
+		return nil, err
+	}
+	if err := writeGeneratedGo(filepath.Join(root, cfg.Source, "jni_exports_gen.go"),
+		true, android.RenderJNIExports(cfg.Package, prog.AndroidImport)); err != nil {
+		return nil, err
+	}
+
+	// Copy user assets and resources into the Android project.
+	if err := copyIfDir(filepath.Join(root, cfg.Source, "assets"), filepath.Join(root, "android", "app", "src", "main", "assets")); err != nil {
+		return nil, fmt.Errorf("failed to copy assets: %w", err)
+	}
+	if err := copyIfDir(filepath.Join(root, cfg.Source, "res"), filepath.Join(root, "android", "app", "src", "main", "res")); err != nil {
+		return nil, fmt.Errorf("failed to copy res: %w", err)
+	}
+	return extraDeps, nil
+}
+
+// writeGeneratedGo writes a Go file the tool owns. When the file is no longer
+// needed it is removed, but only if it still carries the generated marker, so a
+// file the user wrote is never deleted.
+func writeGeneratedGo(path string, needed bool, contents string) error {
+	if !needed {
+		if existing, err := os.ReadFile(path); err == nil && strings.Contains(string(existing), android.GeneratedFileHeader) {
+			return os.Remove(path)
+		}
+		return nil
+	}
+	return write(path, contents)
+}
+
+func write(path string, contents string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(contents), 0o644)
+}
+
+func copyIfDir(src, dst string) error {
+	stat, err := os.Stat(src)
+	if err != nil || !stat.IsDir() {
+		return nil
+	}
+	return copyDir(src, dst)
 }
 
 func require(path string) error {
@@ -213,32 +267,31 @@ func applyOptions(cfg *config.Config, opts []Options) {
 	}
 }
 
-func writeObfuscatedGradle(root string, cfg config.Config) error {
-	appDir := filepath.Join(root, "android", "app")
-	if err := os.WriteFile(filepath.Join(appDir, "build.gradle"), []byte(android.RenderBuildGradle(cfg)), 0o644); err != nil {
+func runGradle(root string, tasks ...string) error {
+	cmdName, args, err := gradle.Command(root)
+	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(appDir, "proguard-rules.pro"), []byte(android.RenderProguardRules()), 0o644)
-}
-
-func runGradle(root string, tasks ...string) error {
-	cmdName, args := gradle.Command(root)
 	args = append(args, tasks...)
 	cmd := exec.Command(cmdName, args...)
 	cmd.Dir = filepath.Join(root, "android")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("running %s %s: %w", cmdName, strings.Join(tasks, " "), err)
+	}
+	return nil
 }
 
 func copyArtifacts(srcDir, dstDir string) error {
 	entries, err := os.ReadDir(srcDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil
+			return fmt.Errorf("no build outputs found in %s", srcDir)
 		}
 		return err
 	}
+	var copied int
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -250,6 +303,11 @@ func copyArtifacts(srcDir, dstDir string) error {
 		if err := os.WriteFile(filepath.Join(dstDir, entry.Name()), in, 0o644); err != nil {
 			return err
 		}
+		fmt.Printf("wrote %s\n", filepath.Join(dstDir, entry.Name()))
+		copied++
+	}
+	if copied == 0 {
+		return fmt.Errorf("no artifacts found in %s", srcDir)
 	}
 	return nil
 }
@@ -269,25 +327,4 @@ func loadConfig(root string) (config.Config, error) {
 		return config.Config{}, err
 	}
 	return config.Load(path)
-}
-
-// Preview generates an HTML preview of the Android application's UI structure
-// without requiring an Android build. It drops a preview.html in the root.
-func Preview(root string) error {
-	cfg, err := loadConfig(root)
-	if err != nil {
-		return err
-	}
-	f := frontend.New()
-	prog, err := f.BuildIRDirs(resolveSources(root, cfg))
-	if err != nil {
-		return fmt.Errorf("frontend parsing failed: %w", err)
-	}
-	html := android.RenderPreviewHTML(cfg, prog)
-	outPath := filepath.Join(root, "preview.html")
-	if err := os.WriteFile(outPath, []byte(html), 0o644); err != nil {
-		return fmt.Errorf("failed to write preview.html: %w", err)
-	}
-	fmt.Printf("Generated UI preview at: %s\nOpen this file in your browser to view the layout.\n", outPath)
-	return nil
 }
