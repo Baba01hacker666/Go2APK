@@ -573,15 +573,15 @@ func applyCSS(b *strings.Builder, viewVar string, css string) {
 		case "box-shadow", "elevation":
 			// We only parse elevation for Android natively
 			val = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(val, "px"), "dp"), "sp")
-			b.WriteString(fmt.Sprintf("        %s.setElevation(Float.parseFloat(\"%s\"));\n", viewVar, val))
+			b.WriteString(fmt.Sprintf("        %s.setElevation(Float.parseFloat(%s));\n", viewVar, javaStringLiteral(val)))
 		case "color":
-			b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setTextColor(Color.parseColor(\"%s\"));\n", viewVar, viewVar, val))
+			b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setTextColor(Color.parseColor(%s));\n", viewVar, viewVar, javaStringLiteral(val)))
 		case "font-size":
 			size := strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(val, "px"), "dp"), "sp")
-			b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setTextSize(Float.parseFloat(\"%s\"));\n", viewVar, viewVar, size))
+			b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setTextSize(Float.parseFloat(%s));\n", viewVar, viewVar, javaStringLiteral(size)))
 		case "padding":
 			pad := strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(val, "px"), "dp"), "sp")
-			b.WriteString(fmt.Sprintf("        %s.setPadding((int)Float.parseFloat(\"%s\"), (int)Float.parseFloat(\"%s\"), (int)Float.parseFloat(\"%s\"), (int)Float.parseFloat(\"%s\"));\n", viewVar, pad, pad, pad, pad))
+			b.WriteString(fmt.Sprintf("        %s.setPadding((int)Float.parseFloat(%s), (int)Float.parseFloat(%s), (int)Float.parseFloat(%s), (int)Float.parseFloat(%s));\n", viewVar, javaStringLiteral(pad), javaStringLiteral(pad), javaStringLiteral(pad), javaStringLiteral(pad)))
 		case "text-align":
 			var gravity string
 			switch val {
@@ -600,7 +600,7 @@ func applyCSS(b *strings.Builder, viewVar string, css string) {
 				b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setTypeface(android.graphics.Typeface.DEFAULT_BOLD);\n", viewVar, viewVar))
 			}
 		case "opacity":
-			b.WriteString(fmt.Sprintf("        %s.setAlpha(Float.parseFloat(\"%s\"));\n", viewVar, val))
+			b.WriteString(fmt.Sprintf("        %s.setAlpha(Float.parseFloat(%s));\n", viewVar, javaStringLiteral(val)))
 		}
 	}
 
@@ -609,13 +609,13 @@ func applyCSS(b *strings.Builder, viewVar string, css string) {
 		b.WriteString("        {\n")
 		b.WriteString("            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();\n")
 		if hasBackground {
-			b.WriteString(fmt.Sprintf("            gd.setColor(Color.parseColor(\"%s\"));\n", bgColor))
+			b.WriteString(fmt.Sprintf("            gd.setColor(Color.parseColor(%s));\n", javaStringLiteral(bgColor)))
 		}
 		if hasRadius {
-			b.WriteString(fmt.Sprintf("            gd.setCornerRadius(Float.parseFloat(\"%s\"));\n", radius))
+			b.WriteString(fmt.Sprintf("            gd.setCornerRadius(Float.parseFloat(%s));\n", javaStringLiteral(radius)))
 		}
 		if hasBorder {
-			b.WriteString(fmt.Sprintf("            gd.setStroke((int)Float.parseFloat(\"%s\"), Color.parseColor(\"%s\"));\n", borderWidth, borderColor))
+			b.WriteString(fmt.Sprintf("            gd.setStroke((int)Float.parseFloat(%s), Color.parseColor(%s));\n", javaStringLiteral(borderWidth), javaStringLiteral(borderColor)))
 		}
 		b.WriteString(fmt.Sprintf("            %s.setBackground(gd);\n", viewVar))
 		b.WriteString("        }\n")

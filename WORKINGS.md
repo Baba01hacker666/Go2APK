@@ -1,187 +1,97 @@
-# WORKINGS.md
+# How Go2APK works
 
-This file is the living, developer-facing map of Go2APK internals. Keep it synchronized with the implementation whenever code, generated templates, scripts, commands, or project layout change.
+This is the developer-facing map of the internals. Keep it in step with the
+implementation whenever the pipeline, the generated files or the project layout
+change.
 
-## Project Overview
+## The pipeline
 
-Go2APK is a Go command-line tool that helps turn declarative Go UI applications into Android APKs from scratch without using gomobile. It accomplishes this through an automated AST transpiler, a dynamic Gradle scaffold, and a JNI build pipeline via the Android NDK. 
-
-1. **Primary path:** `go2apk build` parses the user's Go code, constructs an Intermediate Representation (IR) of the UI, and generates a tailored `MainActivity.java`. It then builds a Java shell and a Go-powered JNI library from `native/app`.
-
-The repository is both the CLI source and a self-contained starter project. The checked-in `go2apk.yaml` points to the project config, while the generated `android/` and `native/app/` directories demonstrate the generic Gradle/JNI architecture.
-
-### Main design goals
-
-- **Build from scratch:** Completely avoid `gomobile` dependencies and build Android apps directly via Gradle and NDK.
-- **Declarative Go UI:** Users describe their Android application using standard Go code in the `ui` package (e.g., `ui.Button`, `ui.TextView`). The transpiler maps standard inline CSS strings into native Android method calls (like `setBackgroundColor` and `setPadding`) at build time with zero runtime penalty.
-- **Native Android APIs:** Direct support for `android.Permission`, `android.Intent`, and `android.BroadcastReceiver` declarations in Go that inject configuration directly into the generated `AndroidManifest.xml` and JNI bindings.
-- **Media Support:** Native `ImageView`, `VideoView`, and headless `MediaPlayer` audio integration configured from declarative Go properties.
-- **HTML Formatted Text:** Transparent HTML rendering support inside `TextView` and `Button` properties.
-- **UI Animations:** Triggers Android `ObjectAnimator` dynamically from Go via the JNI bridge `android.Animate` function.
-- **Optimization:** Go binaries are stripped via linker flags and Android apps minified using R8 / ProGuard rules for fast startup and minimal size.
-- **Low-friction onboarding:** `go2apk init` writes a complete starter configuration, Android project, helper scripts, and CI workflows.
-- **Reproducible Android setup:** SDK installer scripts pin command-line tools, platform, build-tools, and NDK versions.
-- **Generated project transparency:** Android templates live in Go source so `init`, AST transformations, and obfuscation updates are deterministic.
-
-### Overall architecture
-
-```mermaid
-flowchart TD
-    CLI[cmd/go2apk main] --> Project[internal/project]
-    CLI --> Builder[internal/builder]
-    CLI --> Doctor[internal/doctor]
-    CLI --> SDK[internal/sdk]
-    CLI --> Workflow[internal/workflow]
-    Project --> Config[internal/config]
-    Project --> AndroidTemplates[internal/android]
-    Builder --> Frontend[frontend]
-    Frontend --> IR[ir]
-    Builder --> AndroidTemplates
-    Builder --> Config
-    Builder --> Gradle[internal/gradle]
-    AndroidTemplates --> AndroidProject[android/]
-    Gradle --> AndroidProject
-    AndroidProject --> NativeApp[native/app]
+```
+go2apk.yaml ─┐
+             ├─► frontend ──► ir.Program ──► internal/android ──► android/ project ──► Gradle ──► dist/
+app Go code ─┘                                                                            │
+                                                                                          └─► scripts/build-go-app.sh ──► NDK ──► libgo2apkapp.so
 ```
 
-## Execution Flow
+1. **Parse.** `frontend` loads the app's package with `go/packages` and walks the
+   AST looking for `ui.Run`, `ui.RunApp` and the declarative `android.*` calls.
+2. **Lower to IR.** The widget tree becomes `ir.Widget` values, event handlers
+   are collected, and permissions, broadcast receivers and VPN usage are
+   recorded in an `ir.Program`.
+3. **Generate.** `internal/android` renders that program into the Android
+   project: one Activity per page, a `NativeBridge`, the manifest, the Gradle
+   script, and the two Go files that wire up JNI callbacks.
+4. **Build.** `internal/builder` runs Gradle. A `buildGoApp` task in the
+   generated `build.gradle` shells out to `scripts/build-go-app.sh`, which
+   cross-compiles the app with the NDK into a shared library for each ABI.
+5. **Collect.** APKs and AABs are copied into `dist/debug` or `dist/release`.
 
-### CLI startup and command dispatch
+## Packages
 
-1. The executable starts in `cmd/go2apk/main.go`.
-2. `main()` calls `run(os.Args[1:])`.
-3. If no command or a help flag is supplied, `usage()` prints the command list and exits successfully.
-4. `run()` captures the current working directory as the project root.
-5. The first argument dispatches to one of the internal packages:
-   - `init` → `project.Init(root)`
-   - `build` → `builder.Build(root, buildOptions(args[1:]))`
-   - `preview` → `builder.Preview(root)`
-   - `release` → `builder.Release(root, buildOptions(args[1:]))`
-   - `clean` → `builder.Clean(root)`
-   - `doctor` → `doctor.Check(os.Stdout)`
-   - `workflow init` → `workflow.Init(root)`
-   - `sdk install` → `sdk.Install(root, os.Stdout)`
-6. Any returned error is printed to stderr with the `go2apk:` prefix and exits with status 1.
+| Package | Role |
+| --- | --- |
+| `cmd/go2apk` | Command dispatch and usage text. |
+| `ui` | The declarative widget API apps import. Pure data: the structs are read at build time, never at run time. |
+| `android` | The runtime library apps import (`UpdateText`, `StartActivity`, permissions, broadcasts). Stubbed out on non-Android builds. |
+| `frontend` | AST → IR. Owns every diagnostic about app source. |
+| `ir` | The intermediate representation, plus the tree helpers (`Walk`, `ChildrenOf`, `StyleOf`) that keep generators and linters from each writing their own type switch. |
+| `internal/android` | IR → Android sources. Holds the Java, XML and Gradle templates. |
+| `internal/builder` | Orchestrates check, generate, build, release and preview. |
+| `internal/config` | `go2apk.yaml` parsing and validation. |
+| `internal/gradle` | Locates or provisions Gradle. |
+| `internal/project` | `go2apk init`. |
+| `internal/sdk` | SDK installer scripts. |
+| `internal/workflow` | GitHub Actions workflows for an app. |
+| `internal/doctor` | Toolchain reporting. |
 
-### Configuration loading
+There is deliberately no `parser` package: loading packages is part of
+understanding the app, so it lives in `frontend`.
 
-1. Build-like commands call `builder.loadConfig(root)`.
-2. `loadConfig` requires `go2apk.yaml` to exist.
-3. `config.Load(path)` starts from `config.Default()` values and overwrites recognized simple `key: value` entries.
+## Generated files
 
-### `go2apk init`
+These are derived from `go2apk.yaml` and the app source, are rewritten on every
+build, and are excluded from version control:
 
-1. `project.Init` creates the default config.
-2. It computes Java package directories from the configured Android package.
-3. It prepares a map of generated files: `go2apk.yaml`, Android Gradle files, manifest, Java activity/bridge sources, resources, SDK scripts, and GitHub workflows.
-4. For each file, it creates parent directories, skips files that already exist, sets executable mode for shell scripts, and writes missing contents.
-5. It scaffolds a default Go UI application in `examples/demo/main.go`.
+- everything under `android/`
+- `scripts/`
+- `events_gen.go` and `jni_exports_gen.go`, written next to the app source
+- `preview.html`
 
-### `go2apk build`
+Generated Go files carry a `// Code generated by go2apk. DO NOT EDIT.` marker.
+A file is deleted when the app no longer needs it **only** if it still carries
+the marker, so a file of the same name the author wrote is never removed.
 
-1. Load configuration and apply build options.
-2. Ensure Android project scaffold exists (e.g. `android/app/build.gradle`).
-3. Call `frontend.BuildIR(root)` to parse the target Go files and convert the `ui.Run(...)` declarative UI into an `ir.Widget` tree.
-4. Pass the IR tree to `android.RenderDynamicMainActivity` to dynamically create the UI in Java.
-5. If obfuscation is enabled, rewrite `android/app/build.gradle` and `android/app/proguard-rules.pro` from templates.
-6. Create `dist/debug`.
-7. Run Gradle task `assembleDebug` from the `android/` directory.
-8. If Gradle succeeds, copy files from `android/app/build/outputs/apk/debug` into `dist/debug`.
+## Invariants worth preserving
 
-### `go2apk release`
+- **One place per widget.** Adding a widget means touching `ui`, `ir`, and the
+  descriptor in `internal/android/widgets.go`. Everything else — field
+  declarations, text updates, animation, linting, preview — goes through
+  `ir.Walk` and the IR accessors, so a widget kind cannot be half-supported.
+- **Layout defaults live with the generator.** `android.LayoutDefaultsFor` is
+  the single source of truth for what an unset width or height means. The linter
+  reads it too; otherwise it warns about layouts that are fine.
+- **Everything interpolated into Java, XML or Gradle is escaped.** Use
+  `javaStringLiteral` for Java and Gradle strings and `xmlAttr` for manifest
+  attributes. Never `%q` an XML value: Go escapes it into `\uXXXX`, which XML
+  does not understand.
+- **IDs are Java identifiers.** A widget ID becomes a Java field name and part
+  of an event name, so the parser validates it and generates one when a widget
+  with a handler has none.
+- **Generation is deterministic.** Never iterate a map while emitting source;
+  CI fails if regenerating an unchanged project changes any output.
+- **Silence is a bug.** An unrecognised widget, an unreadable `ui.LoadFile`
+  path or a bad style value is reported, not skipped.
 
-1. Uses the same frontend parsing as `build`.
-2. Runs Gradle tasks `assembleRelease` and `bundleRelease` from the `android/` directory.
-3. Copies release artifacts to `dist/release`.
+## Event dispatch
 
-### `go2apk preview`
+A widget handler is registered in `events_gen.go` under a name derived from the
+widget ID, for example `add_onclick`. The generated Activity calls
+`NativeBridge.sendEvent("add_onclick")` from the Android UI thread, which crosses
+JNI into `android.Exported_sendEventToGo`, which looks the name up in the
+runtime's registry and calls the Go handler.
 
-1. Uses the same frontend parsing as `build` to construct the `ir.Widget` tree.
-2. Converts the IR tree into a static HTML/CSS file that mimics the Material Design layout of the Android views.
-3. Writes the output to `preview.html` in the project root, skipping Gradle, Java compilation, and NDK builds completely.
+## Runtime layout
 
-### `go2apk doctor` & `go2apk sdk install`
-(Remains standard toolchain detection and reproducible SDK downloader.)
-
-## Directory Structure
-
-### `/cmd`
-
-Purpose: contains executable entry points.
-
-### `/internal/android`
-
-Purpose: owns render functions for generated Android project files.
-
-What it contains: template functions for `AndroidManifest.xml`, app `build.gradle`, styles, ProGuard rules, `NativeBridge.java`, and the dynamic `MainActivity.java` renderer.
-
-### `/internal/builder`
-
-Purpose: orchestrates the build process, calling the frontend AST parser, generating dynamic Java code, and running Gradle.
-
-### `/ui`
-
-Purpose: Provides the Go declarative UI framework (e.g. `ui.Run`, `ui.TextView`, `ui.Button`, `ui.LinearLayout`). Users import this to define their app.
-
-### `/frontend`, `/parser`, `/ir`
-
-Purpose: Provides AST parsing of user Go files using the `ui` package, turning them into an Intermediate Representation (`ir.Widget`).
-
-### `/android`
-
-Purpose: the Gradle project scaffold dynamically managed by `go2apk`. It packages the generated `MainActivity.java` and JNI bindings.
-
-### `/native/app`
-
-Purpose: The generic Go code that receives UI events via JNI and routes them to user Go callbacks.
-
-### `/scripts`
-
-Purpose: helper scripts for local Android setup and native builds (`build-go-app.sh`).
-
-## Component Responsibilities
-
-### Frontend AST parsing
-
-`frontend` parses the Go AST of the target program, identifies `ui.Run()`, and extracts widget configurations like text, layout structures, and event listener bindings. This transpilation eliminates the need to manually write Java Android Views.
-
-### Android Code Generation
-
-`internal/android/dynamic_templates.go` takes the `ir.Widget` tree and generates standard Android `View` instantiation, configuration, and layout logic directly inside `MainActivity.java`.
-
-### JNI Native Bridge
-
-Instead of app-specific JNI functions, Go2APK uses a generic `NativeBridge.java` that forwards string-based event IDs (e.g. `button_1_click`) to a shared Go JNI handler (`native/app/jni_android.go`). The Go side then calls the user's Go functions.
-
-## Data Flow
-
-### Build data flow
-
-```mermaid
-flowchart LR
-    User[User runs go2apk build] --> CLI[cmd/go2apk]
-    CLI --> Builder[internal/builder]
-    Builder --> Frontend[frontend.BuildIR]
-    Frontend --> Parse[Go AST Parsing]
-    Parse --> IR[IR Tree]
-    Builder --> Dynamic[android.RenderDynamicMainActivity]
-    IR --> Dynamic
-    Dynamic --> AndroidProject[android/app Java files]
-    Builder --> Gradle[Gradle Assemble]
-    Gradle --> NativeScript[scripts/build-go-app.sh]
-    NativeScript --> NativeLibs[libgo2apkapp.so]
-    NativeLibs --> Gradle
-    AndroidProject --> Gradle
-    Gradle --> Dist[dist/debug/app.apk]
-```
-
-### Runtime data flow for JNI events
-
-```mermaid
-flowchart LR
-    Tap[Button tap] --> Activity[MainActivity Event Listener]
-    Activity --> Bridge[NativeBridge.sendEventToGo]
-    Bridge --> JNI[JNI Export in C/Go]
-    JNI --> GoDispatcher[Go Event Router]
-    GoDispatcher --> UserFunc[User Go onClick()]
-```
+Apps are cross-compiled with `-buildmode=c-shared` for `arm64-v8a`,
+`armeabi-v7a`, `x86_64` and `x86`. The generated Gradle project picks the
+libraries up from `android/app/src/main/jniLibs/<abi>/`.
