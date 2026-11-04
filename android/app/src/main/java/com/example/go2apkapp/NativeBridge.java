@@ -18,6 +18,8 @@ final class NativeBridge {
     // ── JNI entry points (called from Go) ────────────────────────────────────
 
     private static native void sendEventToGo(String eventName);
+    private static native void sendCheckedEventToGo(String eventName, boolean checked);
+    private static native void sendTextEventToGo(String eventName, String value);
     private static native void onPermissionResult(String permission, boolean granted);
     static native void onVpnEstablished(int fd);
 
@@ -25,6 +27,16 @@ final class NativeBridge {
 
     static void sendEvent(String eventName) {
         sendEventToGo(eventName);
+    }
+
+    /** Java to Go dispatch for handlers that take the new state of a Switch. */
+    static void sendCheckedEvent(String eventName, boolean checked) {
+        sendCheckedEventToGo(eventName, checked);
+    }
+
+    /** Java to Go dispatch for handlers that take the contents of a TextField. */
+    static void sendTextEvent(String eventName, String value) {
+        sendTextEventToGo(eventName, value);
     }
 
     // ── Activity & Context helpers ────────────────────────────────────────────

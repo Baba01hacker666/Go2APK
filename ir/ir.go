@@ -33,7 +33,26 @@ type EventHandler struct {
 	// into a generated file, which does not inherit the imports of the file it
 	// was written in.
 	Imports []string
+	// Kind is what the handler expects to receive, and therefore which JNI
+	// entry point can deliver the event.
+	Kind HandlerKind
 }
+
+// HandlerKind describes the value a Go event handler is called with. It is
+// decided by the widget's field type: ui.Button uses func(), ui.Switch
+// func(bool) and ui.TextField func(string).
+type HandlerKind int
+
+const (
+	// HandlerPlain is a func() handler, which receives nothing.
+	HandlerPlain HandlerKind = iota
+	// HandlerChecked is a func(bool) handler, which receives the new state of
+	// a ui.Switch.
+	HandlerChecked
+	// HandlerText is a func(string) handler, which receives the new contents of
+	// a ui.TextField.
+	HandlerText
+)
 
 // BroadcastReceiverDecl holds the manifest + runtime info for a broadcast receiver.
 type BroadcastReceiverDecl struct {

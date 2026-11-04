@@ -32,6 +32,16 @@ func %ssendEventToGo(env *C.JNIEnv, clazz C.jclass, eventName C.jstring) {
 	android.Exported_sendEventToGo(unsafe.Pointer(env), unsafe.Pointer(clazz), unsafe.Pointer(eventName))
 }
 
+//export %ssendCheckedEventToGo
+func %ssendCheckedEventToGo(env *C.JNIEnv, clazz C.jclass, eventName C.jstring, checked C.jboolean) {
+	android.Exported_sendCheckedEventToGo(unsafe.Pointer(env), unsafe.Pointer(clazz), unsafe.Pointer(eventName), checked != 0)
+}
+
+//export %ssendTextEventToGo
+func %ssendTextEventToGo(env *C.JNIEnv, clazz C.jclass, eventName C.jstring, value C.jstring) {
+	android.Exported_sendTextEventToGo(unsafe.Pointer(env), unsafe.Pointer(clazz), unsafe.Pointer(eventName), unsafe.Pointer(value))
+}
+
 //export %sonPermissionResult
 func %sonPermissionResult(env *C.JNIEnv, clazz C.jclass, permission C.jstring, granted C.jboolean) {
 	android.Exported_onPermissionResult(unsafe.Pointer(env), unsafe.Pointer(clazz), unsafe.Pointer(permission), granted != 0)
@@ -41,5 +51,5 @@ func %sonPermissionResult(env *C.JNIEnv, clazz C.jclass, permission C.jstring, g
 func %sonVpnEstablished(env *C.JNIEnv, clazz C.jclass, fd C.jint) {
 	android.Exported_onVpnEstablished(unsafe.Pointer(env), unsafe.Pointer(clazz), int(fd))
 }
-`, GeneratedFileHeader, androidImport, jniPrefix, jniPrefix, jniPrefix, jniPrefix, jniPrefix, jniPrefix)
+`, GeneratedFileHeader, androidImport, jniPrefix, jniPrefix, jniPrefix, jniPrefix, jniPrefix, jniPrefix, jniPrefix, jniPrefix, jniPrefix, jniPrefix)
 }

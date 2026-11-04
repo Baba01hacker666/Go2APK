@@ -98,8 +98,8 @@ func TestRenderDynamicActivityWiresEventsByID(t *testing.T) {
 
 	for _, want := range []string{
 		`NativeBridge.sendEvent("go2apk_button_1_onclick")`,
-		`NativeBridge.sendEvent("sw_onchanged")`,
-		`NativeBridge.sendEvent("tf_onchanged")`,
+		`NativeBridge.sendCheckedEvent("sw_onchanged", isChecked)`,
+		`NativeBridge.sendTextEvent("tf_onchanged", s.toString())`,
 	} {
 		if !strings.Contains(src, want) {
 			t.Errorf("generated Java does not dispatch %s", want)
@@ -175,6 +175,50 @@ func TestRenderEventsGenRegistersEveryEvent(t *testing.T) {
 	} {
 		if !strings.Contains(src, want) {
 			t.Errorf("events_gen.go is missing %s:\n%s", want, src)
+		}
+	}
+}
+
+func TestRenderEventsGenUsesTheRegistrationMatchingTheHandler(t *testing.T) {
+	prog := &ir.Program{
+		AndroidImport: "example.com/fork/android",
+		Events: map[string]ir.EventHandler{
+			"b_onclick":   {Expr: "onClick", Kind: ir.HandlerPlain},
+			"s_onchanged": {Expr: "onToggle", Kind: ir.HandlerChecked},
+			"t_onchanged": {Expr: "onEdit", Kind: ir.HandlerText},
+		},
+	}
+
+	src := RenderEventsGen(prog)
+	for _, want := range []string{
+		`android.RegisterEvent("b_onclick", onClick)`,
+		`android.RegisterCheckedEvent("s_onchanged", onToggle)`,
+		`android.RegisterTextEvent("t_onchanged", onEdit)`,
+	} {
+		if !strings.Contains(src, want) {
+			t.Errorf("events_gen.go is missing %s:\n%s", want, src)
+		}
+	}
+}
+
+// TestRenderDynamicActivityDeliversWidgetValues makes sure the Java side sends
+// the value the handler expects, which is the other half of the contract.
+func TestRenderDynamicActivityDeliversWidgetValues(t *testing.T) {
+	tree := ir.ColumnWidget{Children: []ir.Widget{
+		ir.TextFieldWidget{ID: "field", OnChangedFunc: "onEdit"},
+		ir.SwitchWidget{ID: "toggle", OnChangedFunc: "onToggle"},
+		ir.ButtonWidget{ID: "btn", OnClickFunc: "onClick"},
+	}}
+
+	src := RenderDynamicActivity(config.Default(), "MainActivity", tree)
+
+	for _, want := range []string{
+		`NativeBridge.sendTextEvent("field_onchanged", s.toString())`,
+		`NativeBridge.sendCheckedEvent("toggle_onchanged", isChecked)`,
+		`NativeBridge.sendEvent("btn_onclick")`,
+	} {
+		if !strings.Contains(src, want) {
+			t.Errorf("generated Java is missing %s", want)
 		}
 	}
 }

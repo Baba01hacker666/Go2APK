@@ -1,6 +1,8 @@
 package frontend
 
 import (
+	"go/ast"
+	"go/parser"
 	"strings"
 	"testing"
 
@@ -60,7 +62,8 @@ func loadTestProgram(t *testing.T, code string) []*packages.Package {
 	t.Helper()
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles |
-			packages.NeedImports | packages.NeedDeps | packages.NeedSyntax | packages.NeedTypes,
+			packages.NeedImports | packages.NeedDeps | packages.NeedSyntax | packages.NeedTypes |
+			packages.NeedTypesInfo,
 		Overlay: map[string][]byte{
 			"/go2apk-test/main.go":            []byte(code),
 			"/go2apk-test/ui/ui.go":           []byte(uiCode),
@@ -280,4 +283,87 @@ func main() {
 	if !strings.Contains(err.Error(), "OnClick") {
 		t.Errorf("unexpected error: %v", err)
 	}
+}
+
+func TestExtractUIPicksTheRegistrationForTheHandlerShape(t *testing.T) {
+	const code = `package main
+
+import "github.com/Baba01hacker666/Go2APK/ui"
+
+func onEdit(text string) {}
+func onToggle(checked bool) {}
+func onClick() {}
+
+func main() {
+	ui.Run(ui.Column{Children: []ui.Widget{
+		ui.Button{ID: "b", Text: "go", OnClick: onClick},
+		ui.Switch{ID: "s", OnChanged: onToggle},
+		ui.TextField{ID: "t", OnChanged: onEdit},
+		ui.Switch{ID: "s2", OnChanged: func(on bool) {}},
+		ui.TextField{ID: "t2", OnChanged: func(value string) {}},
+	}})
+}
+`
+	prog, err := ExtractUI(loadTestProgram(t, code))
+	if err != nil {
+		t.Fatalf("ExtractUI failed: %v", err)
+	}
+	// The kind decides which JNI entry point can deliver the event, so it has
+	// to match the handler's parameter.
+	want := map[string]ir.HandlerKind{
+		"b_onclick":    ir.HandlerPlain,
+		"s_onchanged":  ir.HandlerChecked,
+		"t_onchanged":  ir.HandlerText,
+		"s2_onchanged": ir.HandlerChecked,
+		"t2_onchanged": ir.HandlerText,
+	}
+	for name, kind := range want {
+		if got := prog.Events[name].Kind; got != kind {
+			t.Errorf("event %s kind = %v, want %v", name, got, kind)
+		}
+	}
+}
+
+func TestHandlerLitKind(t *testing.T) {
+	tests := []struct {
+		name    string
+		params  string
+		want    ir.HandlerKind
+		wantErr bool
+	}{
+		{"no params", "", ir.HandlerPlain, false},
+		{"bool", "checked bool", ir.HandlerChecked, false},
+		{"string", "text string", ir.HandlerText, false},
+		{"unsupported type", "n int", ir.HandlerPlain, true},
+		{"two params", "a bool, b string", ir.HandlerPlain, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lit := parseFuncLit(t, "func("+tc.params+") {}")
+			got, ok := handlerLitKind(lit)
+			if tc.wantErr && ok {
+				t.Fatalf("expected %q to be rejected", tc.params)
+			}
+			if !tc.wantErr && !ok {
+				t.Fatalf("expected %q to be accepted", tc.params)
+			}
+			if got != tc.want {
+				t.Errorf("handlerLitKind for func(%s) = %v, want %v", tc.params, got, tc.want)
+			}
+		})
+	}
+}
+
+// parseFuncLit parses a single function literal from Go source.
+func parseFuncLit(t *testing.T, src string) *ast.FuncLit {
+	t.Helper()
+	expr, err := parser.ParseExpr(src)
+	if err != nil {
+		t.Fatalf("parsing %q: %v", src, err)
+	}
+	lit, ok := expr.(*ast.FuncLit)
+	if !ok {
+		t.Fatalf("%q is not a func literal", src)
+	}
+	return lit
 }

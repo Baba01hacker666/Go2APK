@@ -30,6 +30,8 @@ final class NativeBridge {
     // ── JNI entry points (called from Go) ────────────────────────────────────
 
     private static native void sendEventToGo(String eventName);
+    private static native void sendCheckedEventToGo(String eventName, boolean checked);
+    private static native void sendTextEventToGo(String eventName, String value);
     private static native void onPermissionResult(String permission, boolean granted);
     static native void onVpnEstablished(int fd);
 
@@ -37,6 +39,16 @@ final class NativeBridge {
 
     static void sendEvent(String eventName) {
         sendEventToGo(eventName);
+    }
+
+    /** Java to Go dispatch for handlers that take the new state of a Switch. */
+    static void sendCheckedEvent(String eventName, boolean checked) {
+        sendCheckedEventToGo(eventName, checked);
+    }
+
+    /** Java to Go dispatch for handlers that take the contents of a TextField. */
+    static void sendTextEvent(String eventName, String value) {
+        sendTextEventToGo(eventName, value);
     }
 
     // ── Activity & Context helpers ────────────────────────────────────────────
@@ -702,7 +714,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 			b.WriteString(fmt.Sprintf("            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}\n"))
 			b.WriteString(fmt.Sprintf("            public void onTextChanged(CharSequence s, int start, int before, int count) {}\n"))
 			b.WriteString(fmt.Sprintf("            public void afterTextChanged(android.text.Editable s) {\n"))
-			b.WriteString(fmt.Sprintf("                NativeBridge.sendEvent(%s);\n", javaStringLiteral(v.ID+"_onchanged")))
+			b.WriteString(fmt.Sprintf("                NativeBridge.sendTextEvent(%s, s.toString());\n", javaStringLiteral(v.ID+"_onchanged")))
 			b.WriteString(fmt.Sprintf("            }\n"))
 			b.WriteString(fmt.Sprintf("        });\n"))
 		}
@@ -833,7 +845,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" && v.OnChangedFunc != "" {
 			b.WriteString(fmt.Sprintf("        %s.setOnCheckedChangeListener((buttonView, isChecked) -> {\n", viewVar))
-			b.WriteString(fmt.Sprintf("            NativeBridge.sendEvent(%s);\n", javaStringLiteral(v.ID+"_onchanged")))
+			b.WriteString(fmt.Sprintf("            NativeBridge.sendCheckedEvent(%s, isChecked);\n", javaStringLiteral(v.ID+"_onchanged")))
 			b.WriteString(fmt.Sprintf("        });\n"))
 		}
 		if v.ID != "" {

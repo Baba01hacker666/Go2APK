@@ -54,8 +54,9 @@ func RenderEventsGen(prog *ir.Program) string {
 
 		b.WriteString("func init() {\n")
 		for _, eventName := range names {
-			b.WriteString(fmt.Sprintf("\tandroid.RegisterEvent(%s, %s)\n",
-				javaStringLiteral(eventName), prog.Events[eventName].Expr))
+			handler := prog.Events[eventName]
+			b.WriteString(fmt.Sprintf("\tandroid.%s(%s, %s)\n",
+				registerFunc(handler.Kind), javaStringLiteral(eventName), handler.Expr))
 		}
 		b.WriteString("}\n")
 	} else {
@@ -63,4 +64,17 @@ func RenderEventsGen(prog *ir.Program) string {
 	}
 
 	return b.String()
+}
+
+// registerFunc is the registration call that matches what the handler expects to
+// receive. Each kind has its own entry point because the value has to cross JNI
+// alongside the event name.
+func registerFunc(kind ir.HandlerKind) string {
+	switch kind {
+	case ir.HandlerChecked:
+		return "RegisterCheckedEvent"
+	case ir.HandlerText:
+		return "RegisterTextEvent"
+	}
+	return "RegisterEvent"
 }

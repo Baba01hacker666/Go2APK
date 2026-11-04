@@ -70,6 +70,20 @@ ui.Button{ID: "save", Text: "Save", OnClick: save}
 ui.Button{ID: "clear", Text: "Clear", OnClick: func() { reset() }}
 ```
 
+Some widgets pass a value to the handler. The shape of the handler decides how
+the event is delivered, so use the signature the widget expects:
+
+| Widget | Field | Handler | Receives |
+| --- | --- | --- | --- |
+| `Button` | `OnClick` | `func()` | — |
+| `Switch` | `OnChanged` | `func(checked bool)` | the new switch state |
+| `TextField` | `OnChanged` | `func(text string)` | the new field contents |
+
+```go
+ui.Switch{ID: "notify", OnChanged: func(checked bool) { enabled = checked }}
+ui.TextField{ID: "search", Placeholder: "Search", OnChanged: func(text string) { filter(text) }}
+```
+
 A widget with a handler but no `ID` is given a generated one, because the event
 cannot be dispatched without a name to dispatch it by. That works, but if you
 want to update the widget from Go with `android.UpdateText` you need to set an

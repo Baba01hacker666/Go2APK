@@ -59,7 +59,11 @@ func LoadPackages(dirs []string) ([]*packages.Package, error) {
 		packages.NeedCompiledGoFiles |
 		packages.NeedImports |
 		packages.NeedSyntax |
-		packages.NeedTypes
+		packages.NeedTypes |
+		// NeedTypesInfo gives the extractor the signature of a handler that is
+		// named rather than written inline, which is how it decides which
+		// registration call to generate.
+		packages.NeedTypesInfo
 
 	cleaned := make([]string, 0, len(dirs))
 	for _, dir := range dirs {

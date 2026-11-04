@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/printer"
 	"go/token"
+	"go/types"
 	"os"
 	pathpkg "path"
 	"path/filepath"
@@ -54,6 +55,9 @@ type widgetParser struct {
 	// fset owns the positions of the files being parsed. It is needed to print
 	// an inline func literal back into source form.
 	fset *token.FileSet
+	// info holds the type checker's view of the package, used to read the
+	// signature of a handler given by name.
+	info *types.Info
 
 	root        ir.Widget
 	pages       []ir.Page
@@ -88,6 +92,7 @@ func ExtractUI(pkgs []*packages.Package) (UIProgram, error) {
 		for _, file := range pkg.Syntax {
 			p.dir = ""
 			p.fset = pkg.Fset
+			p.info = pkg.TypesInfo
 			if pkg.Fset != nil {
 				if pos := pkg.Fset.Position(file.Pos()); pos.Filename != "" {
 					p.dir = filepath.Dir(pos.Filename)
@@ -504,6 +509,12 @@ func (f *widgetFields) handler(key, kind, suffix string) string {
 	switch v := expr.(type) {
 	case *ast.Ident:
 		callback.Expr = v.Name
+		kind, ok := f.p.handlerKind(v)
+		if !ok {
+			f.p.errorf("%s must be a func(), func(bool) or func(string)", key)
+			return ""
+		}
+		callback.Kind = kind
 	case *ast.FuncLit:
 		rendered, err := f.p.renderExpr(v)
 		if err != nil {
@@ -512,6 +523,12 @@ func (f *widgetFields) handler(key, kind, suffix string) string {
 		}
 		callback.Expr = rendered
 		callback.Imports = f.p.importsUsedBy(rendered)
+		kind, ok := handlerLitKind(v)
+		if !ok {
+			f.p.errorf("%s must be a func(), func(bool) or func(string)", key)
+			return ""
+		}
+		callback.Kind = kind
 	default:
 		f.p.errorf("%s must be the name of a Go function or an inline func(){}", key)
 		return ""
@@ -524,6 +541,67 @@ func (f *widgetFields) handler(key, kind, suffix string) string {
 	}
 	f.p.events[widgetID+"_"+suffix] = callback
 	return callback.Expr
+}
+
+// handlerKind reports what the named function expects to receive.
+func (p *widgetParser) handlerKind(ident *ast.Ident) (ir.HandlerKind, bool) {
+	if p.info == nil {
+		// Without type information, fall back to the plain form; the Go
+		// compiler still rejects a signature the widget's field does not match.
+		return ir.HandlerPlain, true
+	}
+	obj := p.info.ObjectOf(ident)
+	if obj == nil {
+		return ir.HandlerPlain, true
+	}
+	return signatureKind(obj.Type())
+}
+
+// handlerLitKind reports what an inline func literal expects to receive.
+func handlerLitKind(lit *ast.FuncLit) (ir.HandlerKind, bool) {
+	params := lit.Type.Params
+	if params == nil || params.NumFields() == 0 {
+		return ir.HandlerPlain, true
+	}
+	if params.NumFields() != 1 || len(params.List[0].Names) > 1 {
+		return ir.HandlerPlain, false
+	}
+	id, isIdent := params.List[0].Type.(*ast.Ident)
+	if !isIdent {
+		return ir.HandlerPlain, false
+	}
+	switch id.Name {
+	case "bool":
+		return ir.HandlerChecked, true
+	case "string":
+		return ir.HandlerText, true
+	}
+	return ir.HandlerPlain, false
+}
+
+// signatureKind reports what a func type is called with.
+func signatureKind(t types.Type) (ir.HandlerKind, bool) {
+	sig, isSig := t.Underlying().(*types.Signature)
+	if !isSig {
+		return ir.HandlerPlain, false
+	}
+	if sig.Params().Len() == 0 {
+		return ir.HandlerPlain, true
+	}
+	if sig.Params().Len() != 1 {
+		return ir.HandlerPlain, false
+	}
+	basic, isBasic := sig.Params().At(0).Type().Underlying().(*types.Basic)
+	if !isBasic {
+		return ir.HandlerPlain, false
+	}
+	switch basic.Kind() {
+	case types.Bool:
+		return ir.HandlerChecked, true
+	case types.String, types.UntypedString:
+		return ir.HandlerText, true
+	}
+	return ir.HandlerPlain, false
 }
 
 // renderExpr turns an expression back into Go source, so an inline func literal

@@ -130,13 +130,48 @@ func Preview(root string) error {
 }
 
 // parseProgram reads the app's Go source into the IR.
+//
+// The generated Go files are removed first and rewritten afterwards. They live
+// in the package being parsed, so a stale one from an earlier run is read as if
+// it were the author's code: if it no longer compiles, or no longer matches the
+// current widget tree, every subsequent command fails until someone deletes it
+// by hand.
 func parseProgram(root string, cfg config.Config) (*ir.Program, error) {
+	if err := removeGeneratedGo(root, cfg); err != nil {
+		return nil, err
+	}
 	prog, err := frontend.New().BuildIRDirs(resolveSources(root, cfg))
 	if err != nil {
 		return nil, err
 	}
 	ReportWarnings(os.Stderr, LintProgram(prog))
 	return prog, nil
+}
+
+// generatedGoFiles are the Go files Go2APK writes next to the app source.
+func generatedGoFiles(root string, cfg config.Config) []string {
+	return []string{
+		filepath.Join(root, cfg.Source, "events_gen.go"),
+		filepath.Join(root, cfg.Source, "jni_exports_gen.go"),
+	}
+}
+
+// removeGeneratedGo deletes the tool's own generated Go files, and only those,
+// so that a file of the same name the author wrote is left alone.
+func removeGeneratedGo(root string, cfg config.Config) error {
+	for _, path := range generatedGoFiles(root, cfg) {
+		existing, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		if !strings.Contains(string(existing), android.GeneratedFileHeader) {
+			continue
+		}
+		if err := os.Remove(path); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // prepareDynamicFiles regenerates every file that is derived from the app's
@@ -211,12 +246,11 @@ func prepareDynamicFiles(root string, cfg config.Config) ([]string, error) {
 		return nil, err
 	}
 
-	if err := writeGeneratedGo(filepath.Join(root, cfg.Source, "events_gen.go"),
-		len(prog.Events) > 0, android.RenderEventsGen(prog)); err != nil {
+	if err := writeGeneratedGo(filepath.Join(root, cfg.Source, "events_gen.go"), android.RenderEventsGen(prog)); err != nil {
 		return nil, err
 	}
 	if err := writeGeneratedGo(filepath.Join(root, cfg.Source, "jni_exports_gen.go"),
-		true, android.RenderJNIExports(cfg.Package, prog.AndroidImport)); err != nil {
+		android.RenderJNIExports(cfg.Package, prog.AndroidImport)); err != nil {
 		return nil, err
 	}
 
@@ -230,16 +264,9 @@ func prepareDynamicFiles(root string, cfg config.Config) ([]string, error) {
 	return extraDeps, nil
 }
 
-// writeGeneratedGo writes a Go file the tool owns. When the file is no longer
-// needed it is removed, but only if it still carries the generated marker, so a
-// file the user wrote is never deleted.
-func writeGeneratedGo(path string, needed bool, contents string) error {
-	if !needed {
-		if existing, err := os.ReadFile(path); err == nil && strings.Contains(string(existing), android.GeneratedFileHeader) {
-			return os.Remove(path)
-		}
-		return nil
-	}
+// writeGeneratedGo writes a Go file the tool owns, formatted so that it lands in
+// the author's source tree already gofmt-clean.
+func writeGeneratedGo(path string, contents string) error {
 	return write(path, gofmt(contents))
 }
 

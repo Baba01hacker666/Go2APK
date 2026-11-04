@@ -7,40 +7,44 @@ import (
 	"testing"
 
 	"github.com/Baba01hacker666/Go2APK/internal/android"
+	"github.com/Baba01hacker666/Go2APK/internal/config"
 )
 
-func TestWriteGeneratedGoRemovesStaleFiles(t *testing.T) {
+func TestRemoveGeneratedGoOnlyRemovesTheToolsOwnFiles(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "events_gen.go")
+	cfg := config.Default()
+	cfg.Source = "."
 
-	// A file the tool generated is removed once it is no longer needed; this is
-	// what stops a stale events_gen.go from breaking the next parse.
-	stale := android.GeneratedFileHeader + "\npackage main\n\nfunc init() { android.RegisterEvent(\"old\", Old) }\n"
-	if err := os.WriteFile(path, []byte(stale), 0o644); err != nil {
+	// A stale generated file is deleted before parsing, so it cannot be read
+	// back as if it were the author's code.
+	stale := filepath.Join(dir, "events_gen.go")
+	if err := os.WriteFile(stale, []byte(android.GeneratedFileHeader+"\npackage main\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeGeneratedGo(path, false, ""); err != nil {
-		t.Fatalf("writeGeneratedGo: %v", err)
-	}
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Fatal("expected the stale generated file to be removed")
-	}
-}
-
-func TestWriteGeneratedGoKeepsUserFiles(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "events_gen.go")
-
-	// A file the user wrote must never be deleted, even though it has the same
-	// name the tool uses.
-	if err := os.WriteFile(path, []byte("package main\n\nfunc helper() {}\n"), 0o644); err != nil {
+	ours := filepath.Join(dir, "jni_exports_gen.go")
+	if err := os.WriteFile(ours, []byte(android.GeneratedFileHeader+"\npackage main\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeGeneratedGo(path, false, ""); err != nil {
-		t.Fatalf("writeGeneratedGo: %v", err)
+	// A file of the same name the author wrote must survive.
+	theirs := filepath.Join(dir, "handwritten.go")
+	if err := os.WriteFile(theirs, []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("the user's file was removed: %v", err)
+
+	// Point the config at the temp directory.
+	cfg.Source = "."
+	root := filepath.Dir(dir)
+	cfg.Source = filepath.Base(dir)
+	if err := removeGeneratedGo(root, cfg); err != nil {
+		t.Fatalf("removeGeneratedGo: %v", err)
+	}
+	for _, path := range []string{stale, ours} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("expected %s to be removed", path)
+		}
+	}
+	if _, err := os.Stat(theirs); err != nil {
+		t.Errorf("the author's file was removed: %v", err)
 	}
 }
 
@@ -48,7 +52,7 @@ func TestWriteGeneratedGoWritesWhenNeeded(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "events_gen.go")
 
-	if err := writeGeneratedGo(path, true, android.GeneratedFileHeader+"\npackage main\n"); err != nil {
+	if err := writeGeneratedGo(path, android.GeneratedFileHeader+"\npackage main\n"); err != nil {
 		t.Fatalf("writeGeneratedGo: %v", err)
 	}
 	b, err := os.ReadFile(path)

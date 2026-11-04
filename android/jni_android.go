@@ -185,6 +185,46 @@ func Exported_sendEventToGo(envPtr, clazzPtr, eventNamePtr unsafe.Pointer) {
 	handleEvent(name)
 }
 
+// Exported_sendCheckedEventToGo is called by the generated JNI wrapper when a
+// widget whose handler takes a bool fires.
+func Exported_sendCheckedEventToGo(envPtr, clazzPtr, eventNamePtr unsafe.Pointer, checked bool) {
+	env := (*C.JNIEnv)(envPtr)
+	clazz := (C.jclass)(clazzPtr)
+	eventName := (C.jstring)(eventNamePtr)
+
+	currentEnv = env
+	defer func() { currentEnv = nil }()
+
+	if globalVM == nil {
+		globalVM = C.ExtractJavaVM(env)
+	}
+	if globalBridgeClass == 0 {
+		globalBridgeClass = C.NewGlobalRef(env, clazz)
+	}
+	name := javaString(env, eventName)
+	handleCheckedEvent(name, checked)
+}
+
+// Exported_sendTextEventToGo is called by the generated JNI wrapper when a
+// widget whose handler takes a string fires.
+func Exported_sendTextEventToGo(envPtr, clazzPtr, eventNamePtr, valuePtr unsafe.Pointer) {
+	env := (*C.JNIEnv)(envPtr)
+	clazz := (C.jclass)(clazzPtr)
+	eventName := (C.jstring)(eventNamePtr)
+	value := (C.jstring)(valuePtr)
+
+	currentEnv = env
+	defer func() { currentEnv = nil }()
+
+	if globalVM == nil {
+		globalVM = C.ExtractJavaVM(env)
+	}
+	if globalBridgeClass == 0 {
+		globalBridgeClass = C.NewGlobalRef(env, clazz)
+	}
+	handleTextEvent(javaString(env, eventName), javaString(env, value))
+}
+
 // Exported_onPermissionResult is called by the generated JNI wrapper
 func Exported_onPermissionResult(envPtr, clazzPtr, permissionPtr unsafe.Pointer, granted bool) {
 	env := (*C.JNIEnv)(envPtr)
