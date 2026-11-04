@@ -14,7 +14,9 @@ func RenderJNIExports(pkgName string, androidImport string) string {
 	jniPrefix := "Java_" + strings.ReplaceAll(pkgName, ".", "_") + "_NativeBridge_"
 
 	return fmt.Sprintf(`%s
+
 //go:build android && cgo
+
 package main
 
 // #include <jni.h>

@@ -3,14 +3,14 @@ plugins {
 }
 
 android {
-    namespace 'com.example.signed'
+    namespace 'com.example.go2apkapp'
     compileSdk 36
 
     defaultConfig {
-        applicationId 'com.example.signed'
-        minSdk 24
+        applicationId 'com.example.go2apkapp'
+        minSdk 23
         targetSdk 36
-        versionName '1.0.0'
+        versionName '0.1.0'
         versionCode 1
     }
 
@@ -32,19 +32,17 @@ android {
     }
 
     signingConfigs {
-        release {
-            storeFile rootProject.file('../release.keystore')
-            storePassword "hunter2"
-            keyAlias "mykey"
-            keyPassword "hunter3"
-        }
+        // No keystore configured; release builds fall back to the debug key.
+        // Set keystore, key_alias, keystore_password and key_password in
+        // go2apk.yaml (or the GO2APK_* environment variables) to ship a
+        // properly signed artifact.
     }
 
     buildTypes {
         release {
-            minifyEnabled true
-            shrinkResources true
-            signingConfig signingConfigs.release
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.debug
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

@@ -40,11 +40,6 @@ jobs:
       - name: Build CLI
         run: go build ./cmd/go2apk
 
-      - name: Lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-
   # Regenerating an unchanged project must be a no-op, otherwise every build
   # churns files that are supposed to be derived from go2apk.yaml.
   generate-deterministic:

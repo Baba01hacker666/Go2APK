@@ -4,6 +4,7 @@ package builder
 
 import (
 	"fmt"
+	"go/format"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -239,7 +240,18 @@ func writeGeneratedGo(path string, needed bool, contents string) error {
 		}
 		return nil
 	}
-	return write(path, contents)
+	return write(path, gofmt(contents))
+}
+
+// gofmt formats generated Go source. If it cannot be parsed the unformatted
+// source is kept, so the build still fails with a real compiler error rather
+// than hiding the problem behind a formatting failure.
+func gofmt(src string) string {
+	out, err := format.Source([]byte(src))
+	if err != nil {
+		return src
+	}
+	return string(out)
 }
 
 func write(path string, contents string) error {

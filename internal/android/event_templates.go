@@ -12,7 +12,7 @@ import (
 func RenderEventsGen(prog *ir.Program) string {
 	var b strings.Builder
 	b.WriteString(GeneratedFileHeader)
-	b.WriteString("\npackage main\n\n")
+	b.WriteString("\n\npackage main\n\n")
 
 	if prog != nil && len(prog.Events) > 0 {
 		importPath := prog.AndroidImport
