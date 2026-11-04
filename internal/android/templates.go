@@ -119,10 +119,14 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    signingConfigs {
+%s    }
+
     buildTypes {
         release {
             minifyEnabled %t
             shrinkResources %t
+            signingConfig signingConfigs.%s
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -138,7 +142,44 @@ tasks.register('buildGoApp', Exec) {
 }
 
 preBuild.dependsOn('buildGoApp')
-`, cfg.Package, cfg.TargetSDK, cfg.Package, cfg.MinSDK, cfg.TargetSDK, cfg.Version, cfg.Obfuscate, cfg.Obfuscate, renderDependencyMetadata(deps), renderGradleDependencies(deps), renderGradleInputs(cfg), cfg.Source)
+`, cfg.Package, cfg.TargetSDK, cfg.Package, cfg.MinSDK, cfg.TargetSDK, cfg.Version, releaseSigningConfig(cfg), cfg.Obfuscate, cfg.Obfuscate, signingConfigName(cfg), renderDependencyMetadata(deps), renderGradleDependencies(deps), renderGradleInputs(cfg), cfg.Source)
+}
+
+// signingConfigName is the Gradle signing config the release build type uses.
+// With no keystore configured it falls back to the debug key so that a release
+// build still produces an installable APK instead of an "-unsigned" artifact.
+func signingConfigName(cfg config.Config) string {
+	if cfg.Signed() {
+		return "release"
+	}
+	return "debug"
+}
+
+// releaseSigningConfig emits the release signing block, plus the debug fallback
+// it needs so that signingConfigs.debug always resolves.
+func releaseSigningConfig(cfg config.Config) string {
+	var sb strings.Builder
+	if cfg.Signed() {
+		sb.WriteString(fmt.Sprintf("        release {\n"))
+		sb.WriteString(fmt.Sprintf("            storeFile rootProject.file('../%s')\n", gradlePath(cfg.Keystore)))
+		sb.WriteString(fmt.Sprintf("            storePassword %s\n", javaStringLiteral(cfg.KeystorePassword)))
+		sb.WriteString(fmt.Sprintf("            keyAlias %s\n", javaStringLiteral(cfg.KeyAlias)))
+		sb.WriteString(fmt.Sprintf("            keyPassword %s\n", javaStringLiteral(cfg.KeyPassword)))
+		sb.WriteString("        }\n")
+	}
+	if !cfg.Signed() {
+		// AGP creates the debug config from $HOME/.android/debug.keystore.
+		sb.WriteString("        // No keystore configured; release builds fall back to the debug key.\n")
+		sb.WriteString("        // Set keystore, key_alias, keystore_password and key_password in\n")
+		sb.WriteString("        // go2apk.yaml (or the GO2APK_* environment variables) to ship a\n")
+		sb.WriteString("        // properly signed artifact.\n")
+	}
+	return sb.String()
+}
+
+// gradlePath normalises a project-relative path for use with rootProject.file.
+func gradlePath(path string) string {
+	return filepath.ToSlash(strings.TrimPrefix(path, "./"))
 }
 
 // mergeDependencies combines the user's dependencies with those the generated

@@ -172,8 +172,16 @@ source_dirs: %q
 gradle_dependencies: %q
 # Optional Go build tags passed by your own build scripts.
 go_build_tags: %q
+# Release signing. Leave blank to sign with the debug key, which is installable
+# but not publishable. Passwords are better supplied through the environment as
+# GO2APK_KEYSTORE_PASSWORD and GO2APK_KEY_PASSWORD so they are never committed.
+keystore: %q
+keystore_password: %q
+key_alias: %q
+key_password: %q
 obfuscate: %t
 `, cfg.Name, cfg.Package, cfg.Version, cfg.MinSDK, cfg.TargetSDK, cfg.Orientation, cfg.Theme,
 		cfg.Source, strings.Join(cfg.SourceDirs, ", "), strings.Join(cfg.GradleDependencies, ", "),
-		strings.Join(cfg.GoBuildTags, ", "), cfg.Obfuscate)
+		strings.Join(cfg.GoBuildTags, ", "), cfg.Keystore, cfg.KeystorePassword, cfg.KeyAlias,
+		cfg.KeyPassword, cfg.Obfuscate)
 }

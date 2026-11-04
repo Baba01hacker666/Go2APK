@@ -25,6 +25,22 @@ type Config struct {
 	GradleDependencies []string
 	GoBuildTags        []string
 	Obfuscate          bool
+
+	// Keystore is the path, relative to the project root, of the keystore used
+	// to sign release builds. Empty means releases are signed with the debug
+	// key, which is installable but not publishable.
+	Keystore string
+	// KeystorePassword and KeyPassword may be supplied through the environment
+	// (GO2APK_KEYSTORE_PASSWORD, GO2APK_KEY_PASSWORD) so they never need to be
+	// committed.
+	KeystorePassword string
+	KeyAlias         string
+	KeyPassword      string
+}
+
+// Signed reports whether a real release keystore has been configured.
+func (c Config) Signed() bool {
+	return c.Keystore != "" && c.KeyAlias != ""
 }
 
 // Default returns beginner-friendly Android application defaults.
@@ -106,6 +122,14 @@ func Load(path string) (Config, error) {
 			cfg.GoBuildTags = splitCSV(value)
 		case "obfuscate":
 			cfg.Obfuscate, err = atob(key, value)
+		case "keystore":
+			cfg.Keystore = value
+		case "keystore_password":
+			cfg.KeystorePassword = value
+		case "key_alias":
+			cfg.KeyAlias = value
+		case "key_password":
+			cfg.KeyPassword = value
 		default:
 			return cfg, fmt.Errorf("%s:%d: unknown key %q", path, lineNo, key)
 		}
@@ -149,7 +173,30 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.Source) == "" {
 		return errors.New("source must name the directory holding the app's Go code")
 	}
+	if c.Signed() {
+		if c.KeyPassword == "" || c.KeystorePassword == "" {
+			return errors.New("keystore and key passwords are required when a keystore is configured; " +
+				"set them in go2apk.yaml or through GO2APK_KEYSTORE_PASSWORD / GO2APK_KEY_PASSWORD")
+		}
+	}
 	return nil
+}
+
+// ResolveSecrets overlays credentials from the environment, which take
+// precedence over anything written to go2apk.yaml.
+func (c *Config) ResolveSecrets() {
+	if v := os.Getenv("GO2APK_KEYSTORE_PASSWORD"); v != "" {
+		c.KeystorePassword = v
+	}
+	if v := os.Getenv("GO2APK_KEY_PASSWORD"); v != "" {
+		c.KeyPassword = v
+	}
+	if v := os.Getenv("GO2APK_KEY_ALIAS"); v != "" {
+		c.KeyAlias = v
+	}
+	if v := os.Getenv("GO2APK_KEYSTORE"); v != "" {
+		c.Keystore = v
+	}
 }
 
 // minSupportedSDK is the oldest API level the Android Gradle Plugin the

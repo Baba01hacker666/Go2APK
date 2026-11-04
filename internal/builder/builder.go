@@ -86,6 +86,11 @@ func Release(root string, opts ...Options) error {
 		return err
 	}
 
+	if !cfg.Signed() {
+		fmt.Fprintln(os.Stderr, "warning: no keystore configured; the release APK will be signed with "+
+			"the debug key and cannot be published")
+	}
+
 	out := filepath.Join(root, "dist", "release")
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
@@ -326,5 +331,10 @@ func loadConfig(root string) (config.Config, error) {
 	if err := require(path); err != nil {
 		return config.Config{}, err
 	}
-	return config.Load(path)
+	cfg, err := config.Load(path)
+	if err != nil {
+		return config.Config{}, err
+	}
+	cfg.ResolveSecrets()
+	return cfg, nil
 }
