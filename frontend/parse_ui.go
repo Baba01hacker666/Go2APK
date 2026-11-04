@@ -7,6 +7,7 @@ import (
 	"go/printer"
 	"go/token"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -28,8 +29,8 @@ type UIProgram struct {
 	Root ir.Widget
 	// Pages are the screens passed to ui.RunApp, for multi-page apps.
 	Pages []ir.Page
-	// Events maps generated Android event names to Go handler names.
-	Events map[string]string
+	// Events maps generated Android event names to their Go handlers.
+	Events map[string]ir.EventHandler
 	// Permissions are the manifest permissions the app declares.
 	Permissions []string
 	// Receivers are the broadcast receivers the app declares.
@@ -42,8 +43,13 @@ type UIProgram struct {
 
 // widgetParser holds the state of a single extraction pass.
 type widgetParser struct {
-	events map[string]string
+	events map[string]ir.EventHandler
 	errs   []error
+
+	// imports holds the imports of the file being inspected. An inline handler
+	// is copied into a generated file, so the imports it relies on have to be
+	// carried across with it.
+	imports []fileImport
 
 	// fset owns the positions of the files being parsed. It is needed to print
 	// an inline func literal back into source form.
@@ -73,7 +79,7 @@ type widgetParser struct {
 // reported together rather than one at a time, so a single run surfaces every
 // mistake.
 func ExtractUI(pkgs []*packages.Package) (UIProgram, error) {
-	p := &widgetParser{events: make(map[string]string)}
+	p := &widgetParser{events: make(map[string]ir.EventHandler)}
 
 	for _, pkg := range pkgs {
 		if pkg.Name != "main" {
@@ -108,6 +114,7 @@ func ExtractUI(pkgs []*packages.Package) (UIProgram, error) {
 }
 
 func (p *widgetParser) inspect(file *ast.File) {
+	p.imports = fileImports(file)
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
@@ -425,6 +432,63 @@ func (f *widgetFields) widget(key string) ir.Widget {
 	return f.p.widget(expr)
 }
 
+// fileImport is an import from the file being parsed.
+type fileImport struct {
+	path string
+	// name is the identifier the import is referenced by: its alias, or the
+	// last element of its path.
+	name string
+}
+
+// fileImports extracts the imports of a file, ignoring blank and dot imports
+// whose identifiers cannot be matched against source text.
+func fileImports(file *ast.File) []fileImport {
+	var out []fileImport
+	for _, spec := range file.Imports {
+		path, err := strconv.Unquote(spec.Path.Value)
+		if err != nil {
+			continue
+		}
+		name := ""
+		if spec.Name != nil {
+			name = spec.Name.Name
+		} else {
+			name = packageIdent(path)
+		}
+		if name == "" || name == "_" || name == "." {
+			continue
+		}
+		out = append(out, fileImport{path: path, name: name})
+	}
+	return out
+}
+
+// packageIdent is the identifier a package is referenced by in source, which is
+// the last path element for an unaliased import.
+func packageIdent(path string) string {
+	base := pathpkg.Base(path)
+	// Module paths may end in a major version suffix, which is not part of the
+	// package identifier.
+	if i := strings.LastIndexByte(base, 'v'); i > 0 {
+		if _, err := strconv.Atoi(base[i+1:]); err == nil {
+			base = base[:i]
+		}
+	}
+	return base
+}
+
+// importsUsedBy returns the imports referenced as a package qualifier in code,
+// so a handler copied into a generated file keeps compiling.
+func (p *widgetParser) importsUsedBy(code string) []string {
+	var out []string
+	for _, imp := range p.imports {
+		if regexp.MustCompile(`\b` + regexp.QuoteMeta(imp.name) + `\.`).MatchString(code) {
+			out = append(out, imp.path)
+		}
+	}
+	return out
+}
+
 // handler records a Go callback used as an event handler.
 //
 // The callback is stored as a Go expression rather than a name so that both a
@@ -436,17 +500,18 @@ func (f *widgetFields) handler(key, kind, suffix string) string {
 		return ""
 	}
 
-	var callback string
+	var callback ir.EventHandler
 	switch v := expr.(type) {
 	case *ast.Ident:
-		callback = v.Name
+		callback.Expr = v.Name
 	case *ast.FuncLit:
 		rendered, err := f.p.renderExpr(v)
 		if err != nil {
 			f.p.errorf("cannot use this %s handler: %v", key, err)
 			return ""
 		}
-		callback = rendered
+		callback.Expr = rendered
+		callback.Imports = f.p.importsUsedBy(rendered)
 	default:
 		f.p.errorf("%s must be the name of a Go function or an inline func(){}", key)
 		return ""
@@ -458,7 +523,7 @@ func (f *widgetFields) handler(key, kind, suffix string) string {
 		return ""
 	}
 	f.p.events[widgetID+"_"+suffix] = callback
-	return callback
+	return callback.Expr
 }
 
 // renderExpr turns an expression back into Go source, so an inline func literal

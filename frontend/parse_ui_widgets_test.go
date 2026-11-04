@@ -11,7 +11,7 @@ import (
 
 // newTestParser returns a parser ready to convert a single composite literal.
 func newTestParser() *widgetParser {
-	return &widgetParser{events: make(map[string]string)}
+	return &widgetParser{events: make(map[string]ir.EventHandler)}
 }
 
 // parseWidget converts one composite literal such as

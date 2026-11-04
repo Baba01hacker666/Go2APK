@@ -116,7 +116,7 @@ func TestExtractUI(t *testing.T) {
 		t.Errorf("Button parsed incorrectly: %+v", btn)
 	}
 
-	if got, want := ui.Events["btn1_onclick"], "myHandler"; got != want {
+	if got, want := ui.Events["btn1_onclick"].Expr, "myHandler"; got != want {
 		t.Errorf("event btn1_onclick = %q, want %q", got, want)
 	}
 	if len(ui.Events) != 1 {
@@ -165,7 +165,7 @@ func main() {
 	if btn.ID == "" {
 		t.Fatal("expected a generated ID for a Button with a handler")
 	}
-	if got, want := ui.Events[btn.ID+"_onclick"], "handler"; got != want {
+	if got, want := ui.Events[btn.ID+"_onclick"].Expr, "handler"; got != want {
 		t.Errorf("event %q = %q, want %q; events = %v", btn.ID+"_onclick", got, want, ui.Events)
 	}
 }
@@ -252,7 +252,7 @@ func main() {
 	if err != nil {
 		t.Fatalf("ExtractUI failed: %v", err)
 	}
-	got := prog.Events["btn_onclick"]
+	got := prog.Events["btn_onclick"].Expr
 	// The callback is kept as a Go expression so that it can be emitted into
 	// events_gen.go as written.
 	if !strings.Contains(got, "func()") || !strings.Contains(got, `android.UpdateText("btn", "done")`) {

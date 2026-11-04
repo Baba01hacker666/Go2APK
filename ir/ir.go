@@ -7,8 +7,9 @@ type Program struct {
 	UI Widget
 	// Pages represents the parsed widget trees from ui.RunApp (multi-page)
 	Pages []Page
-	// Events maps UI event handlers to Go function names
-	Events map[string]string // e.g., "button_1_onclick" -> "HandleClick"
+	// Events maps generated Android event names to their Go handlers,
+	// e.g. "button_1_onclick" -> HandleClick.
+	Events map[string]EventHandler
 
 	// Permissions lists Android permissions required by this app.
 	// e.g., ["android.permission.CAMERA", "android.permission.INTERNET"]
@@ -21,6 +22,17 @@ type Program struct {
 	HasVPN bool
 
 	AndroidImport string
+}
+
+// EventHandler is a Go callback bound to an Android event name.
+type EventHandler struct {
+	// Expr is Go source for the handler: the name of a function, or a func
+	// literal copied out of the app's source.
+	Expr string
+	// Imports are the import paths Expr needs. An inline handler is emitted
+	// into a generated file, which does not inherit the imports of the file it
+	// was written in.
+	Imports []string
 }
 
 // BroadcastReceiverDecl holds the manifest + runtime info for a broadcast receiver.

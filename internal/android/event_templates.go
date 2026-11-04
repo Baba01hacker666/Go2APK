@@ -8,7 +8,11 @@ import (
 	"github.com/Baba01hacker666/Go2APK/ir"
 )
 
-// RenderEventsGen generates a Go init file that registers event handlers dynamically.
+// RenderEventsGen generates a Go init file that registers event handlers
+// dynamically.
+//
+// Event names are sorted so that regenerating an unchanged project produces a
+// byte-identical file instead of churning on Go's randomised map order.
 func RenderEventsGen(prog *ir.Program) string {
 	var b strings.Builder
 	b.WriteString(GeneratedFileHeader)
@@ -19,17 +23,39 @@ func RenderEventsGen(prog *ir.Program) string {
 		if importPath == "" {
 			importPath = "github.com/Baba01hacker666/Go2APK/android"
 		}
-		b.WriteString(fmt.Sprintf("import %q\n\n", importPath))
-		b.WriteString("func init() {\n")
-		// Sorted so that regenerating an unchanged project produces a byte
-		// identical file instead of churning on Go's randomised map order.
+
+		// Inline handlers are copied out of the app's source, so they may need
+		// imports the generated file would not otherwise have.
+		imports := []string{importPath}
+		seen := map[string]bool{importPath: true}
 		names := make([]string, 0, len(prog.Events))
 		for eventName := range prog.Events {
 			names = append(names, eventName)
 		}
 		sort.Strings(names)
 		for _, eventName := range names {
-			b.WriteString(fmt.Sprintf("\tandroid.RegisterEvent(%s, %s)\n", javaStringLiteral(eventName), prog.Events[eventName]))
+			for _, imp := range prog.Events[eventName].Imports {
+				if imp != "" && !seen[imp] {
+					seen[imp] = true
+					imports = append(imports, imp)
+				}
+			}
+		}
+
+		if len(imports) == 1 {
+			b.WriteString(fmt.Sprintf("import %q\n\n", imports[0]))
+		} else {
+			b.WriteString("import (\n")
+			for _, imp := range imports {
+				b.WriteString(fmt.Sprintf("\t%q\n", imp))
+			}
+			b.WriteString(")\n\n")
+		}
+
+		b.WriteString("func init() {\n")
+		for _, eventName := range names {
+			b.WriteString(fmt.Sprintf("\tandroid.RegisterEvent(%s, %s)\n",
+				javaStringLiteral(eventName), prog.Events[eventName].Expr))
 		}
 		b.WriteString("}\n")
 	} else {

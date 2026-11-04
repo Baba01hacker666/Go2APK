@@ -156,7 +156,10 @@ func TestRenderBuildGradleIncludesGeneratedDependencies(t *testing.T) {
 
 func TestRenderEventsGenRegistersEveryEvent(t *testing.T) {
 	prog := &ir.Program{
-		Events:        map[string]string{"btn_onclick": "HandleClick", "sw_onchanged": "OnToggle"},
+		Events: map[string]ir.EventHandler{
+			"btn_onclick":  {Expr: "HandleClick"},
+			"sw_onchanged": {Expr: "OnToggle", Imports: []string{"strconv"}},
+		},
 		AndroidImport: "example.com/fork/android",
 	}
 
@@ -164,7 +167,9 @@ func TestRenderEventsGenRegistersEveryEvent(t *testing.T) {
 
 	for _, want := range []string{
 		GeneratedFileHeader,
-		`import "example.com/fork/android"`,
+		`"example.com/fork/android"`,
+		// An inline handler copies its imports across so it still compiles.
+		`"strconv"`,
 		`android.RegisterEvent("btn_onclick", HandleClick)`,
 		`android.RegisterEvent("sw_onchanged", OnToggle)`,
 	} {
