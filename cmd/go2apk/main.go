@@ -3,13 +3,25 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/Baba01hacker666/Go2APK/internal/builder"
+	"github.com/Baba01hacker666/Go2APK/internal/config"
 	"github.com/Baba01hacker666/Go2APK/internal/doctor"
 	"github.com/Baba01hacker666/Go2APK/internal/project"
 	"github.com/Baba01hacker666/Go2APK/internal/sdk"
 	"github.com/Baba01hacker666/Go2APK/internal/workflow"
 )
+
+// loadConfig reads the project configuration from the working directory.
+func loadConfig(root string) (config.Config, error) {
+	cfg, err := config.Load(filepath.Join(root, "go2apk.yaml"))
+	if err != nil {
+		return config.Config{}, err
+	}
+	cfg.ResolveSecrets()
+	return cfg, nil
+}
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -50,14 +62,22 @@ func run(args []string) error {
 		return doctor.Check(os.Stdout)
 	case "workflow":
 		if len(args) > 1 && args[1] == "init" {
-			return workflow.Init(root)
+			cfg, err := loadConfig(root)
+			if err != nil {
+				return err
+			}
+			return workflow.Init(root, cfg)
 		}
 		return fmt.Errorf("unknown workflow command; use: go2apk workflow init")
 	case "preview":
 		return builder.Preview(root)
 	case "sdk":
 		if len(args) > 1 && args[1] == "install" {
-			return sdk.Install(root, os.Stdout)
+			cfg, err := loadConfig(root)
+			if err != nil {
+				return err
+			}
+			return sdk.Install(root, cfg, os.Stdout)
 		}
 		return fmt.Errorf("unknown sdk command; use: go2apk sdk install")
 	default:

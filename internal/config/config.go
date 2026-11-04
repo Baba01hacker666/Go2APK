@@ -13,11 +13,15 @@ import (
 
 // Config contains the project metadata used to generate Android artifacts.
 type Config struct {
-	Name               string
-	Package            string
-	Version            string
-	MinSDK             int
-	TargetSDK          int
+	Name      string
+	Package   string
+	Version   string
+	MinSDK    int
+	TargetSDK int
+	// BuildTools and NDK pin the Android toolchain versions the SDK installer
+	// and the generated workflows use, so CI and a local install agree.
+	BuildTools         string
+	NDK                string
 	Orientation        string
 	Theme              string
 	Source             string
@@ -51,6 +55,8 @@ func Default() Config {
 		Version:     "0.1.0",
 		MinSDK:      23,
 		TargetSDK:   36,
+		BuildTools:  "36.0.0",
+		NDK:         "27.2.12479018",
 		Orientation: "unspecified",
 		Theme:       "@style/AppTheme",
 		Source:      ".",
@@ -71,6 +77,12 @@ func (c Config) Sources() []string {
 		out = append(out, src)
 	}
 	return out
+}
+
+// Platform is the Android SDK platform package for the configured target SDK,
+// for example "android-36".
+func (c Config) Platform() string {
+	return "android-" + strconv.Itoa(c.TargetSDK)
 }
 
 // Load reads go2apk.yaml values. It intentionally supports the simple
@@ -108,6 +120,10 @@ func Load(path string) (Config, error) {
 			cfg.MinSDK, err = atoi(key, value)
 		case "target_sdk":
 			cfg.TargetSDK, err = atoi(key, value)
+		case "build_tools":
+			cfg.BuildTools = value
+		case "ndk":
+			cfg.NDK = value
 		case "orientation":
 			cfg.Orientation = value
 		case "theme":
@@ -166,6 +182,12 @@ func (c Config) Validate() error {
 	}
 	if c.TargetSDK < c.MinSDK {
 		return fmt.Errorf("target_sdk %d must be greater than or equal to min_sdk %d", c.TargetSDK, c.MinSDK)
+	}
+	if strings.TrimSpace(c.BuildTools) == "" {
+		return errors.New("build_tools must not be empty")
+	}
+	if strings.TrimSpace(c.NDK) == "" {
+		return errors.New("ndk must not be empty")
 	}
 	if _, ok := orientations[c.Orientation]; !ok {
 		return fmt.Errorf("orientation %q is not one of %s", c.Orientation, strings.Join(sortedOrientations(), ", "))

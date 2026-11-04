@@ -39,7 +39,7 @@ include ':app'
 		nativeBridgePath:                             android.RenderNativeBridge(cfg),
 		"android/app/src/main/assets/.keep":          "",
 		"android/app/src/main/res/values/styles.xml": android.RenderStyles(),
-		"scripts/install-sdk.sh":                     sdk.InstallScript(),
+		"scripts/install-sdk.sh":                     sdk.InstallScript(cfg),
 		"scripts/build-go-app.sh": `#!/usr/bin/env bash
 set -euo pipefail
 
@@ -116,9 +116,9 @@ fi
 
 echo "Build complete."
 `,
-		"scripts/install-sdk.ps1":       sdk.InstallPowerShell(),
-		".github/workflows/ci.yml":      workflow.CIYAML,
-		".github/workflows/release.yml": workflow.ReleaseYAML,
+		"scripts/install-sdk.ps1":       sdk.InstallPowerShell(cfg),
+		".github/workflows/ci.yml":      workflow.CI(cfg),
+		".github/workflows/release.yml": workflow.Release(cfg),
 	}
 
 	for name, contents := range files {
@@ -170,6 +170,9 @@ source: %q
 source_dirs: %q
 # Optional Android Maven artifacts, for example: androidx.appcompat:appcompat:1.7.0
 gradle_dependencies: %q
+# Android toolchain versions used by scripts/install-sdk.* and the workflows.
+build_tools: %q
+ndk: %q
 # Optional Go build tags passed by your own build scripts.
 go_build_tags: %q
 # Release signing. Leave blank to sign with the debug key, which is installable
@@ -182,6 +185,6 @@ key_password: %q
 obfuscate: %t
 `, cfg.Name, cfg.Package, cfg.Version, cfg.MinSDK, cfg.TargetSDK, cfg.Orientation, cfg.Theme,
 		cfg.Source, strings.Join(cfg.SourceDirs, ", "), strings.Join(cfg.GradleDependencies, ", "),
-		strings.Join(cfg.GoBuildTags, ", "), cfg.Keystore, cfg.KeystorePassword, cfg.KeyAlias,
+		cfg.BuildTools, cfg.NDK, strings.Join(cfg.GoBuildTags, ", "), cfg.Keystore, cfg.KeystorePassword, cfg.KeyAlias,
 		cfg.KeyPassword, cfg.Obfuscate)
 }
