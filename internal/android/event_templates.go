@@ -2,6 +2,7 @@ package android
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/Baba01hacker666/Go2APK/ir"
@@ -20,8 +21,15 @@ func RenderEventsGen(prog *ir.Program) string {
 		}
 		b.WriteString(fmt.Sprintf("import %q\n\n", importPath))
 		b.WriteString("func init() {\n")
-		for eventName, goFunc := range prog.Events {
-			b.WriteString(fmt.Sprintf("\tandroid.RegisterEvent(\"%s\", %s)\n", eventName, goFunc))
+		// Sorted so that regenerating an unchanged project produces a byte
+		// identical file instead of churning on Go's randomised map order.
+		names := make([]string, 0, len(prog.Events))
+		for eventName := range prog.Events {
+			names = append(names, eventName)
+		}
+		sort.Strings(names)
+		for _, eventName := range names {
+			b.WriteString(fmt.Sprintf("\tandroid.RegisterEvent(%s, %s)\n", javaStringLiteral(eventName), prog.Events[eventName]))
 		}
 		b.WriteString("}\n")
 	} else {

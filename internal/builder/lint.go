@@ -81,26 +81,16 @@ func lintWidget(w, parent ir.Widget) string {
 	style := ir.StyleOf(w)
 	defaults := android.LayoutDefaultsFor(w)
 
-	switch parent.WidgetType() {
-	case "Column":
-		// A vertical LinearLayout gives its children no intrinsic width, so a
-		// resolved width of 0 collapses the widget horizontally.
-		if width := resolveSize(style.Width, defaults.Width); width == 0 {
-			return "resolved width is 0 inside a Column, so the widget will be invisible. " +
-				"Set Width to ui.MatchParent or ui.WrapContent."
-		}
-	case "Row":
-		// A horizontal LinearLayout gives its children no intrinsic height
-		// unless a weight stretches them.
-		height := resolveSize(style.Height, defaults.Height)
-		weight := style.Weight
-		if weight == 0 {
-			weight = defaults.Weight
-		}
-		if height == 0 && weight == 0 {
-			return "resolved height is 0 with no Weight inside a Row, so the widget will be invisible. " +
-				"Set Height or give the widget a Weight."
-		}
+	if parent.WidgetType() != "Column" {
+		return ""
+	}
+	// Only a vertical container can collapse a widget. An unset style field
+	// reads as 0 in the IR and the generator falls back to the widget's
+	// default, so a zero height is not reachable; and inside a Row the
+	// generated weight stretches a zero width instead of collapsing it.
+	if width := resolveSize(style.Width, defaults.Width); width == 0 {
+		return "resolved width is 0 inside a Column, so the widget will be invisible. " +
+			"Set Width to ui.MatchParent or ui.WrapContent."
 	}
 	return ""
 }
