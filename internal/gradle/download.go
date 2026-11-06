@@ -57,6 +57,18 @@ func EnsureGradle(root string) (string, error) {
 	}
 	defer os.Remove(archive)
 
+	return installFromArchive(archive, installRoot)
+}
+
+// installFromArchive unpacks a Gradle distribution into installRoot and returns
+// the path to its binary. The distribution keeps its own gradle-<version>
+// directory, so the installed path is the same one the next run looks for.
+func installFromArchive(archive, installRoot string) (string, error) {
+	gradleBin := filepath.Join(installRoot, "gradle-"+Version, "bin", "gradle")
+
+	if err := os.MkdirAll(filepath.Dir(installRoot), 0o755); err != nil {
+		return "", err
+	}
 	staging, err := os.MkdirTemp(filepath.Dir(installRoot), ".gradle-staging-")
 	if err != nil {
 		return "", err
@@ -66,15 +78,21 @@ func EnsureGradle(root string) (string, error) {
 	if err := unzip(archive, staging); err != nil {
 		return "", fmt.Errorf("unpacking Gradle: %w", err)
 	}
-	if _, err := os.Stat(filepath.Join(staging, "gradle-"+Version, "bin", "gradle")); err != nil {
+	unpacked := filepath.Join(staging, "gradle-"+Version)
+	if _, err := os.Stat(filepath.Join(unpacked, "bin", "gradle")); err != nil {
 		return "", fmt.Errorf("Gradle archive did not contain gradle-%s/bin/gradle: %w", Version, err)
 	}
 
 	// Replace any previous attempt, then move the verified tree into place.
+	// Staging sits beside installRoot rather than inside it, so removing the
+	// old install cannot take the new one with it.
 	if err := os.RemoveAll(installRoot); err != nil {
 		return "", err
 	}
-	if err := os.Rename(filepath.Join(staging, "gradle-"+Version), installRoot); err != nil {
+	if err := os.MkdirAll(installRoot, 0o755); err != nil {
+		return "", err
+	}
+	if err := os.Rename(unpacked, filepath.Join(installRoot, "gradle-"+Version)); err != nil {
 		return "", err
 	}
 	if err := os.Chmod(gradleBin, 0o755); err != nil {
