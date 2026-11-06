@@ -2,7 +2,7 @@
 
 This is the developer-facing map of the internals. Keep it in step with the
 implementation whenever the pipeline, the generated files or the project layout
-change.
+change. For using the tool, see [the documentation index](README.md).
 
 ## The pipeline
 
@@ -89,6 +89,20 @@ widget ID, for example `add_onclick`. The generated Activity calls
 `NativeBridge.sendEvent("add_onclick")` from the Android UI thread, which crosses
 JNI into `android.Exported_sendEventToGo`, which looks the name up in the
 runtime's registry and calls the Go handler.
+
+Handlers come in three shapes, because two widgets need to pass a value back:
+
+| Kind | Go type | Widgets | JNI entry point |
+| --- | --- | --- | --- |
+| `HandlerPlain` | `func()` | `Button` | `sendEventToGo(name)` |
+| `HandlerChecked` | `func(bool)` | `Switch` | `sendCheckedEventToGo(name, checked)` |
+| `HandlerText` | `func(string)` | `TextField` | `sendTextEventToGo(name, value)` |
+
+Each kind has its own registry (`RegisterEvent`, `RegisterCheckedEvent`,
+`RegisterTextEvent`) and its own JNI entry point. The parser decides the kind
+from the handler expression: from the AST for an inline `func` literal, and from
+the type checker for a named function — which is why the package loader requests
+`packages.NeedTypesInfo`.
 
 ## Runtime layout
 

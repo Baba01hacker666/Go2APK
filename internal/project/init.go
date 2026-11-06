@@ -1,6 +1,7 @@
 package project
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,8 +15,16 @@ import (
 )
 
 // Init creates the initial Go2APK configuration and Android project skeleton.
+//
+// An existing project keeps its own identity: when go2apk.yaml is already
+// present it is loaded and used, so the Java sources land in the directory the
+// configured package requires. Defaults are only used for a project that does
+// not have a config yet, which is the one case where they are the right answer.
 func Init(root string, force bool) error {
-	cfg := config.Default()
+	cfg, err := initConfig(root)
+	if err != nil {
+		return err
+	}
 	javaDir := filepath.ToSlash(filepath.Join("android/app/src/main/java", strings.ReplaceAll(cfg.Package, ".", "/")))
 	activityPath := filepath.ToSlash(filepath.Join(javaDir, "MainActivity.java"))
 	go2ApkActivityPath := filepath.ToSlash(filepath.Join(javaDir, "Go2ApkActivity.java"))
@@ -142,6 +151,23 @@ echo "Build complete."
 	return nil
 }
 
+// initConfig returns the project's own config when go2apk.yaml exists, and the
+// defaults when it does not. A config that exists but is invalid is an error
+// rather than something to fall back from: silently generating a project that
+// does not match what the author wrote is worse than failing.
+func initConfig(root string) (config.Config, error) {
+	path := filepath.Join(root, "go2apk.yaml")
+	cfg, err := config.Load(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return config.Default(), nil
+		}
+		return config.Config{}, err
+	}
+	cfg.ResolveSecrets()
+	return cfg, nil
+}
+
 // gradleProjectName turns a human-readable app name into something Gradle
 // accepts as rootProject.name, which may not contain path separators or the
 // characters that are reserved on common filesystems.
@@ -157,7 +183,7 @@ func gradleProjectName(name string) string {
 var gradleUnsafeChars = regexp.MustCompile(`[\\/:<>"?*|]+`)
 
 func renderConfig(cfg config.Config) string {
-	return fmt.Sprintf(`# Go2APK project configuration. See README.md for the full reference.
+	return fmt.Sprintf(`# Go2APK project configuration. See docs/CONFIG.md for the full reference.
 name: %q
 package: %q
 version: %q

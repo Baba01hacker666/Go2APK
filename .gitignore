@@ -1,6 +1,6 @@
 # Go build outputs
 /bin/
-/dist/
+dist/
 *.test
 /go2apk
 
@@ -22,6 +22,10 @@ preview.html
 
 # Local toolchain installs
 .go2apk/
+
+# Release signing keys
+*.jks
+*.keystore
 
 # Editors
 .idea/

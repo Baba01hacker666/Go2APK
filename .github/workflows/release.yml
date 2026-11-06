@@ -27,10 +27,29 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      # The Android SDK that ships on GitHub-hosted Ubuntu runners is used
+      # directly. It is already on disk, so it is faster than provisioning one
+      # and it keeps the build free of a third-party action we cannot debug
+      # when it breaks.
+      - name: Locate the Android SDK
+        run: |
+          set -euo pipefail
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          sdkmanager="$(command -v sdkmanager || true)"
+          [ -n "$sdkmanager" ] || sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$sdkmanager" ]; then
+            echo "no sdkmanager under $ANDROID_HOME" >&2
+            ls -R "$ANDROID_HOME" >&2 || true
+            exit 1
+          fi
+          echo "SDKMANAGER=$sdkmanager" >> "$GITHUB_ENV"
+
+      - name: Accept Android SDK licences
+        run: yes | "$SDKMANAGER" --licenses > /dev/null
 
       - name: Install Android SDK packages
-        run: sdkmanager $SDK_PACKAGES
+        run: "$SDKMANAGER" --install $SDK_PACKAGES
 
       - name: Generate Android project
         run: go run ./cmd/go2apk init

@@ -143,3 +143,53 @@ func TestGradleProjectName(t *testing.T) {
 		}
 	}
 }
+
+// TestInitHonoursTheConfiguredPackage covers a bug where the Java sources were
+// written under the *default* package directory even for a project whose
+// go2apk.yaml named a different one, leaving two copies of every class in
+// mutually invisible packages.
+func TestInitHonoursTheConfiguredPackage(t *testing.T) {
+	root := t.TempDir()
+	custom := "com.acme.widgets"
+	if err := os.WriteFile(filepath.Join(root, "go2apk.yaml"), []byte(
+		"name: \"Widgets\"\npackage: \""+custom+"\"\nmin_sdk: 24\ntarget_sdk: 36\n"+
+			"orientation: portrait\nsource: \".\"\nbuild_tools: \"36.0.0\"\nndk: \"27.2.12479018\"\n",
+	), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Init(root, false); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	pkgDir := filepath.Join(root, "android/app/src/main/java", filepath.FromSlash(strings.ReplaceAll(custom, ".", "/")))
+	for _, name := range []string{"MainActivity.java", "Go2ApkActivity.java", "NativeBridge.java"} {
+		path := filepath.Join(pkgDir, name)
+		src, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("expected %s under the configured package: %v", name, err)
+		}
+		// The directory is only half the contract; the file must declare the
+		// same package or javac rejects it.
+		if !strings.Contains(string(src), "package "+custom+";") {
+			t.Errorf("%s does not declare package %s", name, custom)
+		}
+	}
+
+	// Nothing should have been written under the default package.
+	if _, err := os.Stat(filepath.Join(root, "android/app/src/main/java/com/example/goapp")); !os.IsNotExist(err) {
+		t.Error("Init wrote into the default package directory as well as the configured one")
+	}
+}
+
+// TestInitReportsAnInvalidConfig rather than quietly generating a project from
+// defaults that do not match what the author wrote.
+func TestInitReportsAnInvalidConfig(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go2apk.yaml"), []byte("package: \"Not A Package\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Init(root, false); err == nil {
+		t.Fatal("expected Init to reject an invalid package name")
+	}
+}
