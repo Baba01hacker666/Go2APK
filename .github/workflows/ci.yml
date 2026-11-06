@@ -103,10 +103,10 @@ jobs:
           echo "SDKMANAGER=$sdkmanager" >> "$GITHUB_ENV"
 
       - name: Accept Android SDK licences
-        run: yes | "$SDKMANAGER" --licenses > /dev/null
+        run: 'yes | "$SDKMANAGER" --licenses > /dev/null'
 
       - name: Install Android SDK packages
-        run: "$SDKMANAGER" --install $SDK_PACKAGES
+        run: '"$SDKMANAGER" --install $SDK_PACKAGES'
 
       - name: Generate Android project
         run: go run ./cmd/go2apk init
