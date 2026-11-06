@@ -71,6 +71,9 @@ jobs:
   demo-apk:
     name: Build demo APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v4
 
@@ -112,7 +115,25 @@ jobs:
         run: go run ./cmd/go2apk init
 
       - name: Build demo debug APK
-        run: go run ./cmd/go2apk build
+        run: |
+          set -euo pipefail
+          go run ./cmd/go2apk build 2>&1 | tee build.log
+
+      # Temporary: this sandbox cannot download Actions logs or artifacts, so
+      # the failure has to be delivered somewhere readable. Remove once the
+      # build is green.
+      - name: Report the build log
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            printf '`go2apk build` failed on %s.\n\nLast part of the log:\n\n````\n' "${GITHUB_SHA}"
+            tail -c 30000 build.log
+            printf '\n````\n'
+          } > /tmp/comment.md
+          gh api -X POST repos/Baba01hacker666/Go2APK/issues/14/comments \
+            -F body=@/tmp/comment.md > /dev/null
 
       - name: Verify APK exists
         run: test -n "$(find dist/debug -maxdepth 1 -name '*.apk' -print -quit)"
