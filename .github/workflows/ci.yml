@@ -4,44 +4,123 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+env:
+  SDK_PACKAGES: "platform-tools platforms;android-36 build-tools;36.0.0 ndk;27.2.12479018"
+  # Without this Go2APK downloads Gradle unverified and prints a warning.
+  GO2APK_GRADLE_SHA256: "d725d707bfabd4dfdc958c624003b3c80accc03f7037b5122c4b1d0ef15cecab"
+
 jobs:
   go:
+    name: Test Go code
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-      - name: Format check
-        run: test -z "$(gofmt -l .)"
+
+      - name: Check formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt'd:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
       - name: Test
-        run: go test ./...
+        run: go test -race -coverprofile=coverage.out ./...
+
       - name: Build CLI
         run: go build ./cmd/go2apk
 
-  demo-apk:
+  # Regenerating an unchanged project must be a no-op, otherwise every build
+  # churns files that are supposed to be derived from go2apk.yaml.
+  generate-deterministic:
+    name: Generation is reproducible
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: true
+
+      - name: Build CLI
+        run: go build -o /tmp/go2apk ./cmd/go2apk
+
+      - name: Generate twice
+        run: |
+          set -euo pipefail
+          /tmp/go2apk init
+          /tmp/go2apk generate
+          find android scripts -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/before.txt
+          find examples -name '*_gen.go' -type f -print0 | sort -z | xargs -0 sha256sum >> /tmp/before.txt
+          /tmp/go2apk generate
+          find android scripts -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/after.txt
+          find examples -name '*_gen.go' -type f -print0 | sort -z | xargs -0 sha256sum >> /tmp/after.txt
+          diff -u /tmp/before.txt /tmp/after.txt
+
+  demo-apk:
+    name: Build demo APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+
+      # The Android SDK that ships on GitHub-hosted Ubuntu runners is used
+      # directly. It is already on disk, so it is faster than provisioning one
+      # and it keeps the build free of a third-party action we cannot debug
+      # when it breaks.
+      - name: Locate the Android SDK
+        run: |
+          set -euo pipefail
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          sdkmanager="$(command -v sdkmanager || true)"
+          [ -n "$sdkmanager" ] || sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$sdkmanager" ]; then
+            echo "no sdkmanager under $ANDROID_HOME" >&2
+            ls -R "$ANDROID_HOME" >&2 || true
+            exit 1
+          fi
+          echo "SDKMANAGER=$sdkmanager" >> "$GITHUB_ENV"
+
+      - name: Accept Android SDK licences
+        run: 'yes | "$SDKMANAGER" --licenses > /dev/null'
+
       - name: Install Android SDK packages
-        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
-      - name: Resolve demo mobile module
-        run: go mod tidy
-      - name: Initialize Project Scaffold
+        run: '"$SDKMANAGER" --install $SDK_PACKAGES'
+
+      - name: Generate Android project
         run: go run ./cmd/go2apk init
-      - name: Build Calculator APK via Gradle Scaffold
-        run: go run ./cmd/go2apk build
+
+      - name: Build demo debug APK
+        run: |
+          set -euo pipefail
+          go run ./cmd/go2apk build 2>&1 | tee build.log
+
       - name: Verify APK exists
         run: test -n "$(find dist/debug -maxdepth 1 -name '*.apk' -print -quit)"
+
       - uses: actions/upload-artifact@v4
         with:
           name: go2apk-demo-debug-apk

@@ -3,13 +3,25 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/Baba01hacker666/Go2APK/internal/builder"
+	"github.com/Baba01hacker666/Go2APK/internal/config"
 	"github.com/Baba01hacker666/Go2APK/internal/doctor"
 	"github.com/Baba01hacker666/Go2APK/internal/project"
 	"github.com/Baba01hacker666/Go2APK/internal/sdk"
 	"github.com/Baba01hacker666/Go2APK/internal/workflow"
 )
+
+// loadConfig reads the project configuration from the working directory.
+func loadConfig(root string) (config.Config, error) {
+	cfg, err := config.Load(filepath.Join(root, "go2apk.yaml"))
+	if err != nil {
+		return config.Config{}, err
+	}
+	cfg.ResolveSecrets()
+	return cfg, nil
+}
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -41,23 +53,45 @@ func run(args []string) error {
 	case "generate":
 		return builder.Generate(root)
 	case "build":
-		return builder.Build(root, buildOptions(args[1:]))
+		opts, err := buildOptions(args[1:])
+		if err != nil {
+			return err
+		}
+		return builder.Build(root, opts)
 	case "release":
-		return builder.Release(root, buildOptions(args[1:]))
+		opts, err := buildOptions(args[1:])
+		if err != nil {
+			return err
+		}
+		return builder.Release(root, opts)
 	case "clean":
 		return builder.Clean(root)
 	case "doctor":
-		return doctor.Check(os.Stdout)
+		// Doctor runs before a project may exist, so a missing go2apk.yaml is
+		// not an error here: fall back to the defaults.
+		cfg, err := loadConfig(root)
+		if err != nil {
+			cfg = config.Default()
+		}
+		return doctor.Check(os.Stdout, cfg)
 	case "workflow":
 		if len(args) > 1 && args[1] == "init" {
-			return workflow.Init(root)
+			cfg, err := loadConfig(root)
+			if err != nil {
+				return err
+			}
+			return workflow.Init(root, cfg)
 		}
 		return fmt.Errorf("unknown workflow command; use: go2apk workflow init")
 	case "preview":
 		return builder.Preview(root)
 	case "sdk":
 		if len(args) > 1 && args[1] == "install" {
-			return sdk.Install(root, os.Stdout)
+			cfg, err := loadConfig(root)
+			if err != nil {
+				return err
+			}
+			return sdk.Install(root, cfg, os.Stdout)
 		}
 		return fmt.Errorf("unknown sdk command; use: go2apk sdk install")
 	default:
@@ -65,29 +99,38 @@ func run(args []string) error {
 	}
 }
 
-func buildOptions(args []string) builder.Options {
+func buildOptions(args []string) (builder.Options, error) {
 	var opts builder.Options
 	for _, arg := range args {
-		if arg == "--obfuscate" {
+		switch arg {
+		case "--obfuscate":
 			opts.Obfuscate = true
+		default:
+			// Rejecting unknown flags keeps a typo from silently turning into a
+			// build with the wrong settings.
+			return opts, fmt.Errorf("unknown flag %q", arg)
 		}
 	}
-	return opts
+	return opts, nil
 }
 
 func usage() {
-	fmt.Println(`Go2APK converts Go projects into Android APK scaffolding.
+	fmt.Print(`Go2APK turns a declarative Go UI application into a native Android APK.
 
 Usage:
-  go2apk init [--force] Generate go2apk.yaml, Android templates, and helper scripts
-  go2apk check          Check declarative UI syntax and logic
-  go2apk generate       Generate Java code without running a Gradle build
+  go2apk init [--force]   Write go2apk.yaml, the Android project, scripts and CI
+  go2apk check            Parse the app and report layout warnings
+  go2apk generate         Regenerate the Android project without running Gradle
+  go2apk preview          Render preview.html to check the layout in a browser
   go2apk build [--obfuscate]
-                         Validate inputs and run a debug Gradle build when available
+                          Build a debug APK into dist/debug
   go2apk release [--obfuscate]
-                         Validate inputs and run an obfuscated release Gradle build when requested
-  go2apk sdk install    Install Android command-line SDK tools into .go2apk/android-sdk
-  go2apk workflow init  Generate GitHub Actions workflows
-  go2apk doctor         Check Go, Java, Gradle, and Android SDK tooling
-  go2apk clean          Remove generated dist artifacts`)
+                          Build a release APK and AAB into dist/release
+  go2apk sdk install      Write the Android SDK installer scripts
+  go2apk workflow init    Regenerate the GitHub Actions workflows
+  go2apk doctor           Report which build prerequisites are present
+  go2apk clean            Remove generated dist artifacts
+
+Run each command from the directory holding go2apk.yaml.
+`)
 }

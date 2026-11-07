@@ -2,118 +2,114 @@ package builder
 
 import (
 	"fmt"
+	"io"
 
+	"github.com/Baba01hacker666/Go2APK/internal/android"
 	"github.com/Baba01hacker666/Go2APK/ir"
 )
 
-// LintProgram performs a static analysis of the parsed UI IR and warns the user
-// about potential layout issues (e.g. invisible widgets due to width/height 0).
-func LintProgram(prog *ir.Program) {
+// Warning describes a layout problem the linter found in the widget tree.
+type Warning struct {
+	// Screen is the page the widget belongs to, or "Root" for single-page apps.
+	Screen string
+	// Path locates the widget, for example "Column -> Row -> Button(btn_1)".
+	Path string
+	// Message explains the problem and how to fix it.
+	Message string
+}
+
+// LintProgram statically analyses the parsed UI and reports widgets that
+// Android would lay out with a zero-sized edge and therefore never show.
+//
+// The rules mirror the defaults the Java generator applies: a widget in a
+// vertical Column needs a width, and one in a horizontal Row needs a height or
+// a layout weight. Catching this at check time is far cheaper than debugging a
+// blank screen on a device.
+func LintProgram(prog *ir.Program) []Warning {
 	if prog == nil {
-		return
+		return nil
 	}
+	var warnings []Warning
 	if prog.UI != nil {
-		lintWidget(prog.UI, "", "Root", prog.Name)
+		warnings = append(warnings, lintTree("Root", prog.UI)...)
 	}
 	for _, page := range prog.Pages {
 		if page.Root != nil {
-			lintWidget(page.Root, "", page.Name, prog.Name)
+			warnings = append(warnings, lintTree(page.Name, page.Root)...)
 		}
 	}
+	return warnings
 }
 
-func lintWidget(w ir.Widget, parentLayout string, path string, appName string) {
-	if w == nil {
-		return
-	}
+func lintTree(screen string, root ir.Widget) []Warning {
+	var out []Warning
+	var visit func(ir.Widget, ir.Widget, string)
+	visit = func(w ir.Widget, parent ir.Widget, path string) {
+		if w == nil {
+			return
+		}
+		label := w.WidgetType()
+		if id := ir.IDOf(w); id != "" {
+			label += "(" + id + ")"
+		}
+		current := label
+		if path != "" {
+			current = path + " -> " + label
+		}
 
-	var style ir.Style
-	var children []ir.Widget
-	nodeName := w.WidgetType()
-
-	switch v := w.(type) {
-	case ir.ColumnWidget:
-		style = v.Style
-		children = v.Children
-		if v.ID != "" {
-			nodeName += "(" + v.ID + ")"
+		if msg := lintWidget(w, parent); msg != "" {
+			out = append(out, Warning{Screen: screen, Path: current, Message: msg})
 		}
-	case ir.RowWidget:
-		style = v.Style
-		children = v.Children
-		if v.ID != "" {
-			nodeName += "(" + v.ID + ")"
-		}
-	case ir.ButtonWidget:
-		style = v.Style
-		if v.ID != "" {
-			nodeName += "(" + v.ID + ")"
-		}
-	case ir.TextViewWidget:
-		style = v.Style
-		if v.ID != "" {
-			nodeName += "(" + v.ID + ")"
-		}
-	case ir.TextFieldWidget:
-		style = v.Style
-		if v.ID != "" {
-			nodeName += "(" + v.ID + ")"
-		}
-	case ir.ImageWidget:
-		style = v.Style
-		if v.ID != "" {
-			nodeName += "(" + v.ID + ")"
-		}
-	case ir.VideoWidget:
-		style = v.Style
-		if v.ID != "" {
-			nodeName += "(" + v.ID + ")"
-		}
-	case ir.SwitchWidget:
-		style = v.Style
-		if v.ID != "" {
-			nodeName += "(" + v.ID + ")"
-		}
-	case ir.ProgressBarWidget:
-		style = v.Style
-		if v.ID != "" {
-			nodeName += "(" + v.ID + ")"
-		}
-	case ir.ScrollViewWidget:
-		style = v.Style
-		if v.ID != "" {
-			nodeName += "(" + v.ID + ")"
+		for _, child := range ir.ChildrenOf(w) {
+			visit(child, w, current)
 		}
 	}
+	visit(root, nil, "")
+	return out
+}
 
-
-	currentPath := path + " -> " + nodeName
-
-	// Warnings logic
-	// In Android, our Button, TextField, etc. code generates specific defaults if style.Width/Height is 0.
-	// E.g., Button defaultWidth = 0.
-	// If a Button is in a Column (parentLayout == "Column"), and its Width == 0, and default is 0, it becomes invisible.
-	
-	if parentLayout == "Column" {
-		// In a Column (vertical), if Width == 0, it collapses to 0 pixels horizontally.
-		// Some widgets (like Button) might default to 0 in our generator if not specified.
-		// Let's warn if Width is explicitly 0, or if it's a Button and Width isn't set.
-		if style.Width == 0 {
-			if w.WidgetType() == "Button" || w.WidgetType() == "Row" {
-				fmt.Printf("\n[WARNING] %s:\n  Widget %s has Width=0 inside a Column. It will be completely invisible on screen!\n  Fix: Set Width to ui.MatchParent or ui.WrapContent.\n\n", appName, currentPath)
-			}
-		}
-	} else if parentLayout == "Row" {
-		// In a Row (horizontal), if Height == 0 and Weight == 0, it collapses to 0 pixels vertically.
-		// Our generator sometimes sets defaultHeight = -2 (WrapContent). But if user sets Height=0 manually without Weight, it's invisible.
-		if style.Height == 0 && style.Weight == 0 {
-			fmt.Printf("\n[WARNING] %s:\n  Widget %s has Height=0 and Weight=0 inside a Row. It will be completely invisible on screen!\n  Fix: Set Height or add a Weight value.\n\n", appName, currentPath)
-		}
+// lintWidget returns a message when w is guaranteed to be invisible inside
+// parent, and "" otherwise.
+//
+// Sizes are resolved through the generator's own defaults: an unset style field
+// is zero in the IR, which means "use the default" rather than "collapse", so
+// only the resulting size can be judged.
+func lintWidget(w, parent ir.Widget) string {
+	if parent == nil {
+		return ""
 	}
+	style := ir.StyleOf(w)
+	defaults := android.LayoutDefaultsFor(w)
 
-	for _, child := range children {
-		if child != nil {
-			lintWidget(child, w.WidgetType(), currentPath, appName)
-		}
+	if parent.WidgetType() != "Column" {
+		return ""
+	}
+	// Only a vertical container can collapse a widget. An unset style field
+	// reads as 0 in the IR and the generator falls back to the widget's
+	// default, so a zero height is not reachable; and inside a Row the
+	// generated weight stretches a zero width instead of collapsing it.
+	if width := resolveSize(style.Width, defaults.Width); width == 0 {
+		return "resolved width is 0 inside a Column, so the widget will be invisible. " +
+			"Set Width to ui.MatchParent or ui.WrapContent."
+	}
+	return ""
+}
+
+// resolveSize applies the generator's fallback when a style field is unset.
+func resolveSize(value, fallback int) int {
+	if value == 0 {
+		return fallback
+	}
+	return value
+}
+
+// ReportWarnings writes lint findings to w in a form that is easy to read and
+// to grep, and reports how many were found.
+func ReportWarnings(w io.Writer, warnings []Warning) {
+	for _, warn := range warnings {
+		fmt.Fprintf(w, "warning: %s: %s\n    %s\n", warn.Screen, warn.Path, warn.Message)
+	}
+	if n := len(warnings); n > 0 {
+		fmt.Fprintf(w, "%d layout warning(s)\n", n)
 	}
 }

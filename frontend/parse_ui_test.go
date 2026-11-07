@@ -1,6 +1,8 @@
 package frontend
 
 import (
+	"go/ast"
+	"go/parser"
 	"strings"
 	"testing"
 
@@ -54,54 +56,56 @@ func Permission(name string) {}
 func BroadcastReceiver(action, name string, cb func()) {}
 `
 
-func TestExtractUI(t *testing.T) {
-	// Setup a temporary directory for parsing
+// loadTestProgram parses testCode with the mock ui and android packages, as if
+// it were the entry point of a real app.
+func loadTestProgram(t *testing.T, code string) []*packages.Package {
+	t.Helper()
 	cfg := &packages.Config{
-		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedDeps | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles |
+			packages.NeedImports | packages.NeedDeps | packages.NeedSyntax | packages.NeedTypes |
+			packages.NeedTypesInfo,
+		Overlay: map[string][]byte{
+			"/go2apk-test/main.go":            []byte(code),
+			"/go2apk-test/ui/ui.go":           []byte(uiCode),
+			"/go2apk-test/android/android.go": []byte(androidCode),
+		},
 	}
-
-	// For a real test without a full Go module, we can use parser.Parse on a temp directory,
-	// but to make it simple we'll just parse the AST directly using go/parser.
-	// Since ExtractUI takes []*packages.Package, we use packages.Load overlay.
-
-	cfg.Overlay = map[string][]byte{
-		"/tmp/testapp/main.go":            []byte(testCode),
-		"/tmp/testapp/ui/ui.go":           []byte(uiCode),
-		"/tmp/testapp/android/android.go": []byte(androidCode),
-	}
-
-	// Load the package
-	pkgs, err := packages.Load(cfg, "file=/tmp/testapp/main.go")
+	pkgs, err := packages.Load(cfg, "file=/go2apk-test/main.go")
 	if err != nil {
 		t.Fatalf("packages.Load failed: %v", err)
 	}
 	if packages.PrintErrors(pkgs) > 0 {
 		t.Fatalf("packages had errors")
 	}
+	return pkgs
+}
 
-	uiTree, _, events, permissions, receivers, _ := ExtractUI(pkgs)
-
-	if uiTree == nil {
-		t.Fatalf("Expected root widget, got nil")
+func TestExtractUI(t *testing.T) {
+	ui, err := ExtractUI(loadTestProgram(t, testCode))
+	if err != nil {
+		t.Fatalf("ExtractUI failed: %v", err)
 	}
-	col, ok := uiTree.(ir.ColumnWidget)
+
+	if ui.Root == nil {
+		t.Fatal("expected a root widget, got nil")
+	}
+	col, ok := ui.Root.(ir.ColumnWidget)
 	if !ok {
-		t.Fatalf("Expected root to be ColumnWidget")
+		t.Fatalf("expected root to be ColumnWidget, got %T", ui.Root)
 	}
 	if col.ID != "root" {
-		t.Errorf("Expected root ID to be 'root', got %q", col.ID)
+		t.Errorf("root ID = %q, want %q", col.ID, "root")
 	}
 	if !strings.Contains(col.CSS, "background-color: #000000") {
-		t.Errorf("Expected root CSS to contain background-color, got %q", col.CSS)
+		t.Errorf("root CSS = %q, want it to contain the background colour", col.CSS)
 	}
-
 	if len(col.Children) != 2 {
-		t.Fatalf("Expected 2 children, got %d", len(col.Children))
+		t.Fatalf("got %d children, want 2", len(col.Children))
 	}
 
 	tv, ok := col.Children[0].(ir.TextViewWidget)
 	if !ok {
-		t.Fatalf("Expected first child to be TextViewWidget")
+		t.Fatalf("first child = %T, want TextViewWidget", col.Children[0])
 	}
 	if tv.ID != "tv1" || tv.Text != "Hello" || tv.CSS != "color: red; font-size: 24px;" {
 		t.Errorf("TextView parsed incorrectly: %+v", tv)
@@ -109,21 +113,257 @@ func TestExtractUI(t *testing.T) {
 
 	btn, ok := col.Children[1].(ir.ButtonWidget)
 	if !ok {
-		t.Fatalf("Expected second child to be ButtonWidget")
+		t.Fatalf("second child = %T, want ButtonWidget", col.Children[1])
 	}
 	if btn.ID != "btn1" || btn.Text != "Click Me" {
 		t.Errorf("Button parsed incorrectly: %+v", btn)
 	}
 
-	if len(events) != 1 {
-		t.Errorf("Expected 1 event, got %d", len(events))
+	if got, want := ui.Events["btn1_onclick"].Expr, "myHandler"; got != want {
+		t.Errorf("event btn1_onclick = %q, want %q", got, want)
+	}
+	if len(ui.Events) != 1 {
+		t.Errorf("got %d events, want 1: %v", len(ui.Events), ui.Events)
 	}
 
-	if len(permissions) != 1 || permissions[0] != "android.permission.CAMERA" {
-		t.Errorf("Permissions parsed incorrectly: %v", permissions)
+	if len(ui.Permissions) != 1 || ui.Permissions[0] != "android.permission.CAMERA" {
+		t.Errorf("permissions = %v, want [android.permission.CAMERA]", ui.Permissions)
 	}
+	if len(ui.Receivers) != 1 {
+		t.Fatalf("got %d receivers, want 1", len(ui.Receivers))
+	}
+	if ui.Receivers[0].Action != "android.intent.action.BATTERY_LOW" || ui.Receivers[0].Name != "on_battery" {
+		t.Errorf("receiver parsed incorrectly: %+v", ui.Receivers[0])
+	}
+	if ui.AndroidImport != DefaultAndroidImport {
+		t.Errorf("AndroidImport = %q, want %q", ui.AndroidImport, DefaultAndroidImport)
+	}
+}
 
-	if len(receivers) != 1 || receivers[0].Action != "android.intent.action.BATTERY_LOW" || receivers[0].Name != "on_battery" {
-		t.Errorf("Receivers parsed incorrectly: %v", receivers)
+func TestExtractUIGeneratesIDForHandlerWithoutOne(t *testing.T) {
+	const code = `package main
+
+import "github.com/Baba01hacker666/Go2APK/ui"
+
+func handler() {}
+
+func main() {
+	ui.Run(ui.Column{Children: []ui.Widget{
+		ui.Button{Text: "no id", OnClick: handler},
+	}})
+}
+`
+	ui, err := ExtractUI(loadTestProgram(t, code))
+	if err != nil {
+		t.Fatalf("ExtractUI failed: %v", err)
 	}
+	col, ok := ui.Root.(ir.ColumnWidget)
+	if !ok {
+		t.Fatalf("root = %T, want ColumnWidget", ui.Root)
+	}
+	btn, ok := col.Children[0].(ir.ButtonWidget)
+	if !ok {
+		t.Fatalf("child = %T, want ButtonWidget", col.Children[0])
+	}
+	if btn.ID == "" {
+		t.Fatal("expected a generated ID for a Button with a handler")
+	}
+	if got, want := ui.Events[btn.ID+"_onclick"].Expr, "handler"; got != want {
+		t.Errorf("event %q = %q, want %q; events = %v", btn.ID+"_onclick", got, want, ui.Events)
+	}
+}
+
+func TestExtractUIRejectsInvalidWidgetID(t *testing.T) {
+	const code = `package main
+
+import "github.com/Baba01hacker666/Go2APK/ui"
+
+func main() {
+	ui.Run(ui.Column{Children: []ui.Widget{
+		ui.TextView{ID: "not-a-java-name", Text: "hi"},
+	}})
+}
+`
+	_, err := ExtractUI(loadTestProgram(t, code))
+	if err == nil {
+		t.Fatal("expected an error for an ID that is not a Java identifier")
+	}
+	if !strings.Contains(err.Error(), "not a valid Java identifier") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestExtractUIMultiPage(t *testing.T) {
+	const code = `package main
+
+import "github.com/Baba01hacker666/Go2APK/ui"
+
+func main() {
+	ui.RunApp(
+		ui.Page{Name: "MainPage", Root: ui.TextView{ID: "a", Text: "one"}},
+		ui.Page{Name: "SettingsPage", Root: ui.TextView{ID: "b", Text: "two"}},
+	)
+}
+`
+	uiCode := uiCode + `
+type Page struct { Name string; Root Widget }
+func RunApp(pages ...Page) {}
+`
+	cfg := &packages.Config{
+		Mode: packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedDeps | packages.NeedImports,
+		Overlay: map[string][]byte{
+			"/go2apk-test/main.go":  []byte(code),
+			"/go2apk-test/ui/ui.go": []byte(uiCode),
+		},
+	}
+	pkgs, err := packages.Load(cfg, "file=/go2apk-test/main.go")
+	if err != nil {
+		t.Fatalf("packages.Load failed: %v", err)
+	}
+	if packages.PrintErrors(pkgs) > 0 {
+		t.Fatal("packages had errors")
+	}
+	prog, err := ExtractUI(pkgs)
+	if err != nil {
+		t.Fatalf("ExtractUI failed: %v", err)
+	}
+	if len(prog.Pages) != 2 {
+		t.Fatalf("got %d pages, want 2", len(prog.Pages))
+	}
+	if prog.Pages[0].Name != "MainPage" || prog.Pages[1].Name != "SettingsPage" {
+		t.Errorf("pages parsed incorrectly: %+v", prog.Pages)
+	}
+}
+
+func TestExtractUIAcceptsInlineFuncHandlers(t *testing.T) {
+	const code = `package main
+
+import (
+	"github.com/Baba01hacker666/Go2APK/android"
+	"github.com/Baba01hacker666/Go2APK/ui"
+)
+
+func main() {
+	ui.Run(ui.Column{Children: []ui.Widget{
+		ui.Button{ID: "btn", Text: "go", OnClick: func() {
+			android.UpdateText("btn", "done")
+		}},
+	}})
+}
+`
+	prog, err := ExtractUI(loadTestProgram(t, code))
+	if err != nil {
+		t.Fatalf("ExtractUI failed: %v", err)
+	}
+	got := prog.Events["btn_onclick"].Expr
+	// The callback is kept as a Go expression so that it can be emitted into
+	// events_gen.go as written.
+	if !strings.Contains(got, "func()") || !strings.Contains(got, `android.UpdateText("btn", "done")`) {
+		t.Errorf("event handler = %q, want the func literal source", got)
+	}
+}
+
+func TestExtractUIRejectsInvalidHandler(t *testing.T) {
+	const code = `package main
+
+import "github.com/Baba01hacker666/Go2APK/ui"
+
+func makeHandler() func() { return func() {} }
+
+func main() {
+	ui.Run(ui.Column{Children: []ui.Widget{
+		ui.Button{ID: "btn", Text: "go", OnClick: makeHandler()},
+	}})
+}
+`
+	_, err := ExtractUI(loadTestProgram(t, code))
+	if err == nil {
+		t.Fatal("expected an error when OnClick is not a function")
+	}
+	if !strings.Contains(err.Error(), "OnClick") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestExtractUIPicksTheRegistrationForTheHandlerShape(t *testing.T) {
+	const code = `package main
+
+import "github.com/Baba01hacker666/Go2APK/ui"
+
+func onEdit(text string) {}
+func onToggle(checked bool) {}
+func onClick() {}
+
+func main() {
+	ui.Run(ui.Column{Children: []ui.Widget{
+		ui.Button{ID: "b", Text: "go", OnClick: onClick},
+		ui.Switch{ID: "s", OnChanged: onToggle},
+		ui.TextField{ID: "t", OnChanged: onEdit},
+		ui.Switch{ID: "s2", OnChanged: func(on bool) {}},
+		ui.TextField{ID: "t2", OnChanged: func(value string) {}},
+	}})
+}
+`
+	prog, err := ExtractUI(loadTestProgram(t, code))
+	if err != nil {
+		t.Fatalf("ExtractUI failed: %v", err)
+	}
+	// The kind decides which JNI entry point can deliver the event, so it has
+	// to match the handler's parameter.
+	want := map[string]ir.HandlerKind{
+		"b_onclick":    ir.HandlerPlain,
+		"s_onchanged":  ir.HandlerChecked,
+		"t_onchanged":  ir.HandlerText,
+		"s2_onchanged": ir.HandlerChecked,
+		"t2_onchanged": ir.HandlerText,
+	}
+	for name, kind := range want {
+		if got := prog.Events[name].Kind; got != kind {
+			t.Errorf("event %s kind = %v, want %v", name, got, kind)
+		}
+	}
+}
+
+func TestHandlerLitKind(t *testing.T) {
+	tests := []struct {
+		name    string
+		params  string
+		want    ir.HandlerKind
+		wantErr bool
+	}{
+		{"no params", "", ir.HandlerPlain, false},
+		{"bool", "checked bool", ir.HandlerChecked, false},
+		{"string", "text string", ir.HandlerText, false},
+		{"unsupported type", "n int", ir.HandlerPlain, true},
+		{"two params", "a bool, b string", ir.HandlerPlain, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lit := parseFuncLit(t, "func("+tc.params+") {}")
+			got, ok := handlerLitKind(lit)
+			if tc.wantErr && ok {
+				t.Fatalf("expected %q to be rejected", tc.params)
+			}
+			if !tc.wantErr && !ok {
+				t.Fatalf("expected %q to be accepted", tc.params)
+			}
+			if got != tc.want {
+				t.Errorf("handlerLitKind for func(%s) = %v, want %v", tc.params, got, tc.want)
+			}
+		})
+	}
+}
+
+// parseFuncLit parses a single function literal from Go source.
+func parseFuncLit(t *testing.T, src string) *ast.FuncLit {
+	t.Helper()
+	expr, err := parser.ParseExpr(src)
+	if err != nil {
+		t.Fatalf("parsing %q: %v", src, err)
+	}
+	lit, ok := expr.(*ast.FuncLit)
+	if !ok {
+		t.Fatalf("%q is not a func literal", src)
+	}
+	return lit
 }

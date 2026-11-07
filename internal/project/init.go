@@ -1,9 +1,11 @@
 package project
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/Baba01hacker666/Go2APK/internal/android"
@@ -13,19 +15,27 @@ import (
 )
 
 // Init creates the initial Go2APK configuration and Android project skeleton.
+//
+// An existing project keeps its own identity: when go2apk.yaml is already
+// present it is loaded and used, so the Java sources land in the directory the
+// configured package requires. Defaults are only used for a project that does
+// not have a config yet, which is the one case where they are the right answer.
 func Init(root string, force bool) error {
-	cfg := config.Default()
+	cfg, err := initConfig(root)
+	if err != nil {
+		return err
+	}
 	javaDir := filepath.ToSlash(filepath.Join("android/app/src/main/java", strings.ReplaceAll(cfg.Package, ".", "/")))
 	activityPath := filepath.ToSlash(filepath.Join(javaDir, "MainActivity.java"))
 	go2ApkActivityPath := filepath.ToSlash(filepath.Join(javaDir, "Go2ApkActivity.java"))
 	nativeBridgePath := filepath.ToSlash(filepath.Join(javaDir, "NativeBridge.java"))
 	files := map[string]string{
 		"go2apk.yaml": renderConfig(cfg),
-		"android/settings.gradle": `pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+		"android/settings.gradle": fmt.Sprintf(`pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
 dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-rootProject.name = "Go2APKCalculator"
+rootProject.name = %q
 include ':app'
-`,
+`, gradleProjectName(cfg.Name)),
 		"android/build.gradle": `plugins {
     id 'com.android.application' version '8.5.2' apply false
 }
@@ -38,7 +48,7 @@ include ':app'
 		nativeBridgePath:                             android.RenderNativeBridge(cfg),
 		"android/app/src/main/assets/.keep":          "",
 		"android/app/src/main/res/values/styles.xml": android.RenderStyles(),
-		"scripts/install-sdk.sh":                     sdk.InstallScript(),
+		"scripts/install-sdk.sh":                     sdk.InstallScript(cfg),
 		"scripts/build-go-app.sh": `#!/usr/bin/env bash
 set -euo pipefail
 
@@ -115,9 +125,9 @@ fi
 
 echo "Build complete."
 `,
-		"scripts/install-sdk.ps1":       sdk.InstallPowerShell(),
-		".github/workflows/ci.yml":      workflow.CIYAML,
-		".github/workflows/release.yml": workflow.ReleaseYAML,
+		"scripts/install-sdk.ps1":       sdk.InstallPowerShell(cfg),
+		".github/workflows/ci.yml":      workflow.CI(cfg),
+		".github/workflows/release.yml": workflow.Release(cfg),
 	}
 
 	for name, contents := range files {
@@ -141,6 +151,66 @@ echo "Build complete."
 	return nil
 }
 
+// initConfig returns the project's own config when go2apk.yaml exists, and the
+// defaults when it does not. A config that exists but is invalid is an error
+// rather than something to fall back from: silently generating a project that
+// does not match what the author wrote is worse than failing.
+func initConfig(root string) (config.Config, error) {
+	path := filepath.Join(root, "go2apk.yaml")
+	cfg, err := config.Load(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return config.Default(), nil
+		}
+		return config.Config{}, err
+	}
+	cfg.ResolveSecrets()
+	return cfg, nil
+}
+
+// gradleProjectName turns a human-readable app name into something Gradle
+// accepts as rootProject.name, which may not contain path separators or the
+// characters that are reserved on common filesystems.
+func gradleProjectName(name string) string {
+	out := gradleUnsafeChars.ReplaceAllString(strings.TrimSpace(name), "")
+	out = strings.Trim(out, " .")
+	if out == "" {
+		return "Go2APKApp"
+	}
+	return out
+}
+
+var gradleUnsafeChars = regexp.MustCompile(`[\\/:<>"?*|]+`)
+
 func renderConfig(cfg config.Config) string {
-	return fmt.Sprintf("name: %s\npackage: %s\nversion: %s\nmin_sdk: %d\ntarget_sdk: %d\norientation: %s\ntheme: %s\nsource: %s\n# Optional comma-separated folders for split UI/logic packages, for example: ./app/ui, ./app/logic\nsource_dirs: %s\n# Optional Android Maven artifacts, for example: androidx.appcompat:appcompat:1.7.0, com.google.android.material:material:1.12.0\ngradle_dependencies: %s\n# Optional Go build tags passed by your own build scripts.\ngo_build_tags: %s\nobfuscate: %t\n", cfg.Name, cfg.Package, cfg.Version, cfg.MinSDK, cfg.TargetSDK, cfg.Orientation, cfg.Theme, cfg.Source, strings.Join(cfg.SourceDirs, ", "), strings.Join(cfg.GradleDependencies, ", "), strings.Join(cfg.GoBuildTags, ", "), cfg.Obfuscate)
+	return fmt.Sprintf(`# Go2APK project configuration. See docs/CONFIG.md for the full reference.
+name: %q
+package: %q
+version: %q
+min_sdk: %d
+target_sdk: %d
+orientation: %q
+theme: %q
+source: %q
+# Optional comma-separated folders for split UI/logic packages, for example: ./app/ui, ./app/logic
+source_dirs: %q
+# Optional Android Maven artifacts, for example: androidx.appcompat:appcompat:1.7.0
+gradle_dependencies: %q
+# Android toolchain versions used by scripts/install-sdk.* and the workflows.
+build_tools: %q
+ndk: %q
+# Optional Go build tags passed by your own build scripts.
+go_build_tags: %q
+# Release signing. Leave blank to sign with the debug key, which is installable
+# but not publishable. Passwords are better supplied through the environment as
+# GO2APK_KEYSTORE_PASSWORD and GO2APK_KEY_PASSWORD so they are never committed.
+keystore: %q
+keystore_password: %q
+key_alias: %q
+key_password: %q
+obfuscate: %t
+`, cfg.Name, cfg.Package, cfg.Version, cfg.MinSDK, cfg.TargetSDK, cfg.Orientation, cfg.Theme,
+		cfg.Source, strings.Join(cfg.SourceDirs, ", "), strings.Join(cfg.GradleDependencies, ", "),
+		cfg.BuildTools, cfg.NDK, strings.Join(cfg.GoBuildTags, ", "), cfg.Keystore, cfg.KeystorePassword, cfg.KeyAlias,
+		cfg.KeyPassword, cfg.Obfuscate)
 }

@@ -6,35 +6,36 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/Baba01hacker666/Go2APK/internal/config"
 )
 
-const (
-	defaultCommandLineTools = "15859902"
-	defaultBuildTools       = "36.0.0"
-	defaultPlatform         = "android-36"
-	defaultNDK              = "27.2.12479018"
-)
+// defaultCommandLineTools pins the Android command-line tools revision the
+// installers fetch, so an SDK install is reproducible across machines.
+const defaultCommandLineTools = "15859902"
 
-// Install writes reproducible SDK setup scripts and directory placeholders.
-func Install(root string, w io.Writer) error {
+// Install writes SDK installers matching the project's configured toolchain and
+// creates the local SDK directory.
+func Install(root string, cfg config.Config, w io.Writer) error {
 	sdkRoot := filepath.Join(root, ".go2apk", "android-sdk")
 	for _, dir := range []string{sdkRoot, filepath.Join(root, "scripts")} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
 	}
-	if err := os.WriteFile(filepath.Join(root, "scripts", "install-sdk.sh"), []byte(InstallScript()), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "scripts", "install-sdk.sh"), []byte(InstallScript(cfg)), 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(root, "scripts", "install-sdk.ps1"), []byte(InstallPowerShell()), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "scripts", "install-sdk.ps1"), []byte(InstallPowerShell(cfg)), 0o644); err != nil {
 		return err
 	}
 	fmt.Fprintf(w, "prepared Android SDK installer for %s at %s\n", runtime.GOOS, sdkRoot)
 	return nil
 }
 
-// InstallScript returns a POSIX installer for Android command-line tools.
-func InstallScript() string {
+// InstallScript returns a POSIX installer for the Android command-line tools,
+// pinned to the toolchain versions in cfg.
+func InstallScript(cfg config.Config) string {
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euo pipefail
 SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$(pwd)/.go2apk/android-sdk}}"
@@ -61,11 +62,12 @@ yes | "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_ROOT" \
   "platform-tools" "platforms;$PLATFORM" "build-tools;$BUILD_TOOLS" "ndk;$NDK_VERSION"
 echo "export ANDROID_HOME=$SDK_ROOT"
 echo "export ANDROID_SDK_ROOT=$SDK_ROOT"
-`, defaultCommandLineTools, defaultBuildTools, defaultPlatform, defaultNDK)
+`, defaultCommandLineTools, cfg.BuildTools, cfg.Platform(), cfg.NDK)
 }
 
-// InstallPowerShell returns a Windows installer for Android command-line tools.
-func InstallPowerShell() string {
+// InstallPowerShell returns a Windows installer for the Android command-line
+// tools, pinned to the toolchain versions in cfg.
+func InstallPowerShell(cfg config.Config) string {
 	return fmt.Sprintf(`$ErrorActionPreference = "Stop"
 $SdkRoot = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } elseif ($env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT } else { Join-Path (Get-Location) ".go2apk/android-sdk" }
 $ToolsVersion = if ($env:GO2APK_CMDLINE_TOOLS_VERSION) { $env:GO2APK_CMDLINE_TOOLS_VERSION } else { "%s" }
@@ -84,5 +86,5 @@ Copy-Item (Join-Path $Temp "cmdline-tools/*") $Latest -Recurse -Force
 & (Join-Path $Latest "bin/sdkmanager.bat") --sdk_root=$SdkRoot --licenses
 & (Join-Path $Latest "bin/sdkmanager.bat") --sdk_root=$SdkRoot "platform-tools" "platforms;$Platform" "build-tools;$BuildTools" "ndk;$NdkVersion"
 Write-Host "ANDROID_HOME=$SdkRoot"
-`, defaultCommandLineTools, defaultBuildTools, defaultPlatform, defaultNDK)
+`, defaultCommandLineTools, cfg.BuildTools, cfg.Platform(), cfg.NDK)
 }

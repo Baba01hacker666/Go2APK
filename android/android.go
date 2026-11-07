@@ -67,7 +67,11 @@ func StartActivity(intent Intent) {
 // Broadcast Receivers
 // ──────────────────────────────────────────────────────────────────────────────
 
-var eventRegistry = make(map[string]func())
+var (
+	eventRegistry        = make(map[string]func())
+	checkedEventRegistry = make(map[string]func(bool))
+	textEventRegistry    = make(map[string]func(string))
+)
 
 // RegisterEvent binds an Android event name to a Go handler function.
 // This is called automatically by the generated events_gen.go file.
@@ -75,13 +79,41 @@ func RegisterEvent(name string, handler func()) {
 	eventRegistry[name] = handler
 }
 
+// RegisterCheckedEvent binds an Android event name to a handler that receives
+// the new state of a ui.Switch. It is called automatically by the generated
+// events_gen.go file for handlers that take a bool.
+func RegisterCheckedEvent(name string, handler func(bool)) {
+	checkedEventRegistry[name] = handler
+}
+
+// RegisterTextEvent binds an Android event name to a handler that receives the
+// new contents of a ui.TextField. It is called automatically by the generated
+// events_gen.go file for handlers that take a string.
+func RegisterTextEvent(name string, handler func(string)) {
+	textEventRegistry[name] = handler
+}
+
 // handleEvent is called by the JNI bridge when an event occurs.
 // It looks up the registered Go function and executes it.
-//
-//export handleEvent
 func handleEvent(name string) {
 	if handler, ok := eventRegistry[name]; ok {
 		handler()
+	}
+}
+
+// handleCheckedEvent is called by the JNI bridge when a widget whose handler
+// takes a bool fires, such as a ui.Switch.
+func handleCheckedEvent(name string, checked bool) {
+	if handler, ok := checkedEventRegistry[name]; ok {
+		handler(checked)
+	}
+}
+
+// handleTextEvent is called by the JNI bridge when a widget whose handler takes
+// a string fires, such as a ui.TextField.
+func handleTextEvent(name string, value string) {
+	if handler, ok := textEventRegistry[name]; ok {
+		handler(value)
 	}
 }
 

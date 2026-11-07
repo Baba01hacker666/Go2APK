@@ -8,36 +8,75 @@ on:
 permissions:
   contents: write
 
+env:
+  SDK_PACKAGES: "platform-tools platforms;android-36 build-tools;36.0.0 ndk;27.2.12479018"
+  GO2APK_GRADLE_SHA256: "d725d707bfabd4dfdc958c624003b3c80accc03f7037b5122c4b1d0ef15cecab"
+
 jobs:
   release:
+    name: Build release artifacts
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+
+      # The Android SDK that ships on GitHub-hosted Ubuntu runners is used
+      # directly. It is already on disk, so it is faster than provisioning one
+      # and it keeps the build free of a third-party action we cannot debug
+      # when it breaks.
+      - name: Locate the Android SDK
+        run: |
+          set -euo pipefail
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          sdkmanager="$(command -v sdkmanager || true)"
+          [ -n "$sdkmanager" ] || sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$sdkmanager" ]; then
+            echo "no sdkmanager under $ANDROID_HOME" >&2
+            ls -R "$ANDROID_HOME" >&2 || true
+            exit 1
+          fi
+          echo "SDKMANAGER=$sdkmanager" >> "$GITHUB_ENV"
+
+      - name: Accept Android SDK licences
+        run: 'yes | "$SDKMANAGER" --licenses > /dev/null'
+
       - name: Install Android SDK packages
-        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
-      - name: Resolve demo mobile module
-        run: go mod tidy
-      - name: Initialize Project Scaffold
+        run: '"$SDKMANAGER" --install $SDK_PACKAGES'
+
+      - name: Generate Android project
         run: go run ./cmd/go2apk init
-      - name: Build release artifacts via Gradle Scaffold
+
+      # Without the GO2APK_* secrets the APK is signed with the debug key, which
+      # is installable but not publishable.
+      - name: Build release artifacts
+        env:
+          GO2APK_KEYSTORE: ${{ secrets.GO2APK_KEYSTORE }}
+          GO2APK_KEY_ALIAS: ${{ secrets.GO2APK_KEY_ALIAS }}
+          GO2APK_KEYSTORE_PASSWORD: ${{ secrets.GO2APK_KEYSTORE_PASSWORD }}
+          GO2APK_KEY_PASSWORD: ${{ secrets.GO2APK_KEY_PASSWORD }}
         run: go run ./cmd/go2apk release
+
       - name: Verify release APK exists
         run: test -n "$(find dist/release -maxdepth 1 -name '*.apk' -print -quit)"
+
       - name: Checksums
         run: find dist/release -maxdepth 1 -type f -print0 | xargs -0 sha256sum > dist/release/SHA256SUMS.txt
+
       - uses: actions/upload-artifact@v4
         with:
           name: go2apk-demo-release-apk
           path: dist/release/*
           if-no-files-found: error
+
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/release/*

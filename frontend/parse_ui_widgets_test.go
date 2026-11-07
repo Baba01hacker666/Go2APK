@@ -3,13 +3,30 @@ package frontend
 import (
 	"go/ast"
 	"go/token"
+	"strings"
 	"testing"
 
 	"github.com/Baba01hacker666/Go2APK/ir"
 )
 
-func TestParseCompositeImage(t *testing.T) {
-	// Construct an AST for: ui.Image{Src: "http://example.com/img.png"}
+// newTestParser returns a parser ready to convert a single composite literal.
+func newTestParser() *widgetParser {
+	return &widgetParser{events: make(map[string]ir.EventHandler)}
+}
+
+// parseWidget converts one composite literal such as
+// ui.Image{Src: "http://example.com/img.png"} into an IR widget.
+func parseWidget(t *testing.T, comp *ast.CompositeLit) ir.Widget {
+	t.Helper()
+	p := newTestParser()
+	w := p.widget(comp)
+	if err := p.err(); err != nil {
+		t.Fatalf("parsing widget: %v", err)
+	}
+	return w
+}
+
+func TestParseWidgetImage(t *testing.T) {
 	comp := &ast.CompositeLit{
 		Type: &ast.SelectorExpr{Sel: &ast.Ident{Name: "Image"}},
 		Elts: []ast.Expr{
@@ -19,19 +36,17 @@ func TestParseCompositeImage(t *testing.T) {
 			},
 		},
 	}
-	events := make(map[string]string)
-	widget := parseWidget(comp, events)
 
-	img, ok := widget.(ir.ImageWidget)
+	img, ok := parseWidget(t, comp).(ir.ImageWidget)
 	if !ok {
-		t.Fatalf("Expected ImageWidget, got %T", widget)
+		t.Fatalf("expected ImageWidget")
 	}
 	if img.Src != "http://example.com/img.png" {
-		t.Errorf("Expected Src to be http://example.com/img.png, got %s", img.Src)
+		t.Errorf("Src = %q, want http://example.com/img.png", img.Src)
 	}
 }
 
-func TestParseCompositeVideo(t *testing.T) {
+func TestParseWidgetVideo(t *testing.T) {
 	comp := &ast.CompositeLit{
 		Type: &ast.SelectorExpr{Sel: &ast.Ident{Name: "Video"}},
 		Elts: []ast.Expr{
@@ -41,19 +56,17 @@ func TestParseCompositeVideo(t *testing.T) {
 			},
 		},
 	}
-	events := make(map[string]string)
-	widget := parseWidget(comp, events)
 
-	vid, ok := widget.(ir.VideoWidget)
+	vid, ok := parseWidget(t, comp).(ir.VideoWidget)
 	if !ok {
-		t.Fatalf("Expected VideoWidget, got %T", widget)
+		t.Fatalf("expected VideoWidget")
 	}
 	if vid.Src != "file:///sdcard/vid.mp4" {
-		t.Errorf("Expected Src to be file:///sdcard/vid.mp4, got %s", vid.Src)
+		t.Errorf("Src = %q, want file:///sdcard/vid.mp4", vid.Src)
 	}
 }
 
-func TestParseCompositeAudio(t *testing.T) {
+func TestParseWidgetAudio(t *testing.T) {
 	comp := &ast.CompositeLit{
 		Type: &ast.SelectorExpr{Sel: &ast.Ident{Name: "Audio"}},
 		Elts: []ast.Expr{
@@ -67,35 +80,30 @@ func TestParseCompositeAudio(t *testing.T) {
 			},
 		},
 	}
-	events := make(map[string]string)
-	widget := parseWidget(comp, events)
 
-	aud, ok := widget.(ir.AudioWidget)
+	aud, ok := parseWidget(t, comp).(ir.AudioWidget)
 	if !ok {
-		t.Fatalf("Expected AudioWidget, got %T", widget)
+		t.Fatalf("expected AudioWidget")
 	}
 	if aud.Src != "http://example.com/audio.mp3" {
-		t.Errorf("Expected Src to be http://example.com/audio.mp3, got %s", aud.Src)
+		t.Errorf("Src = %q, want http://example.com/audio.mp3", aud.Src)
 	}
 	if !aud.AutoPlay {
-		t.Errorf("Expected AutoPlay to be true, got false")
+		t.Error("AutoPlay = false, want true")
 	}
 }
 
-func TestParseCompositeScrollView(t *testing.T) {
+func TestParseWidgetScrollView(t *testing.T) {
 	comp := &ast.CompositeLit{
 		Type: &ast.SelectorExpr{Sel: &ast.Ident{Name: "ScrollView"}},
 	}
-	events := make(map[string]string)
-	widget := parseWidget(comp, events)
 
-	_, ok := widget.(ir.ScrollViewWidget)
-	if !ok {
-		t.Fatalf("Expected ScrollViewWidget, got %T", widget)
+	if _, ok := parseWidget(t, comp).(ir.ScrollViewWidget); !ok {
+		t.Fatalf("expected ScrollViewWidget")
 	}
 }
 
-func TestParseCompositeCardView(t *testing.T) {
+func TestParseWidgetCardView(t *testing.T) {
 	comp := &ast.CompositeLit{
 		Type: &ast.SelectorExpr{Sel: &ast.Ident{Name: "CardView"}},
 		Elts: []ast.Expr{
@@ -105,19 +113,17 @@ func TestParseCompositeCardView(t *testing.T) {
 			},
 		},
 	}
-	events := make(map[string]string)
-	widget := parseWidget(comp, events)
 
-	cv, ok := widget.(ir.CardViewWidget)
+	cv, ok := parseWidget(t, comp).(ir.CardViewWidget)
 	if !ok {
-		t.Fatalf("Expected CardViewWidget, got %T", widget)
+		t.Fatalf("expected CardViewWidget")
 	}
 	if cv.CSS != "box-shadow: 4px;" {
-		t.Errorf("Expected CSS to be parsed, got %s", cv.CSS)
+		t.Errorf("CSS = %q, want box-shadow: 4px;", cv.CSS)
 	}
 }
 
-func TestParseCompositeWebView(t *testing.T) {
+func TestParseWidgetWebView(t *testing.T) {
 	comp := &ast.CompositeLit{
 		Type: &ast.SelectorExpr{Sel: &ast.Ident{Name: "WebView"}},
 		Elts: []ast.Expr{
@@ -127,14 +133,134 @@ func TestParseCompositeWebView(t *testing.T) {
 			},
 		},
 	}
-	events := make(map[string]string)
-	widget := parseWidget(comp, events)
 
-	wv, ok := widget.(ir.WebViewWidget)
+	wv, ok := parseWidget(t, comp).(ir.WebViewWidget)
 	if !ok {
-		t.Fatalf("Expected WebViewWidget, got %T", widget)
+		t.Fatalf("expected WebViewWidget")
 	}
 	if wv.Src != "https://google.com" {
-		t.Errorf("Expected Src to be https://google.com, got %s", wv.Src)
+		t.Errorf("Src = %q, want https://google.com", wv.Src)
+	}
+}
+
+func TestParseWidgetXMLView(t *testing.T) {
+	comp := &ast.CompositeLit{
+		Type: &ast.SelectorExpr{Sel: &ast.Ident{Name: "XMLView"}},
+		Elts: []ast.Expr{
+			&ast.KeyValueExpr{
+				Key:   &ast.Ident{Name: "Layout"},
+				Value: &ast.BasicLit{Kind: token.STRING, Value: `"my_layout"`},
+			},
+		},
+	}
+
+	xv, ok := parseWidget(t, comp).(ir.XMLView)
+	if !ok {
+		t.Fatalf("expected XMLView")
+	}
+	if xv.Layout != "my_layout" {
+		t.Errorf("Layout = %q, want my_layout", xv.Layout)
+	}
+}
+
+func TestParseWidgetStyleDimensions(t *testing.T) {
+	comp := &ast.CompositeLit{
+		Type: &ast.SelectorExpr{Sel: &ast.Ident{Name: "Column"}},
+		Elts: []ast.Expr{
+			&ast.KeyValueExpr{
+				Key: &ast.Ident{Name: "Style"},
+				Value: &ast.CompositeLit{
+					Elts: []ast.Expr{
+						&ast.KeyValueExpr{Key: &ast.Ident{Name: "Width"}, Value: &ast.SelectorExpr{Sel: &ast.Ident{Name: "MatchParent"}}},
+						&ast.KeyValueExpr{Key: &ast.Ident{Name: "Height"}, Value: &ast.SelectorExpr{Sel: &ast.Ident{Name: "WrapContent"}}},
+						&ast.KeyValueExpr{Key: &ast.Ident{Name: "Padding"}, Value: &ast.BasicLit{Kind: token.INT, Value: "12"}},
+						&ast.KeyValueExpr{Key: &ast.Ident{Name: "Weight"}, Value: &ast.BasicLit{Kind: token.FLOAT, Value: "1.5"}},
+					},
+				},
+			},
+		},
+	}
+
+	col, ok := parseWidget(t, comp).(ir.ColumnWidget)
+	if !ok {
+		t.Fatalf("expected ColumnWidget")
+	}
+	if col.Style.Width != -1 {
+		t.Errorf("Width = %d, want -1 (MatchParent)", col.Style.Width)
+	}
+	if col.Style.Height != -2 {
+		t.Errorf("Height = %d, want -2 (WrapContent)", col.Style.Height)
+	}
+	if col.Style.Padding != 12 {
+		t.Errorf("Padding = %d, want 12", col.Style.Padding)
+	}
+	if col.Style.Weight != 1.5 {
+		t.Errorf("Weight = %v, want 1.5", col.Style.Weight)
+	}
+}
+
+func TestParseWidgetReportsBadStyleValue(t *testing.T) {
+	comp := &ast.CompositeLit{
+		Type: &ast.SelectorExpr{Sel: &ast.Ident{Name: "Column"}},
+		Elts: []ast.Expr{
+			&ast.KeyValueExpr{
+				Key: &ast.Ident{Name: "Style"},
+				Value: &ast.CompositeLit{
+					Elts: []ast.Expr{
+						&ast.KeyValueExpr{Key: &ast.Ident{Name: "Padding"}, Value: &ast.BasicLit{Kind: token.STRING, Value: `"12px"`}},
+					},
+				},
+			},
+		},
+	}
+
+	p := newTestParser()
+	p.widget(comp)
+	if err := p.err(); err == nil {
+		t.Fatal("expected an error for a non-numeric Padding")
+	}
+}
+
+func TestParseWidgetUnknownTypeIsReported(t *testing.T) {
+	// A widget kind the parser does not know about must be reported rather
+	// than silently dropped from the layout.
+	comp := &ast.CompositeLit{
+		Type: &ast.SelectorExpr{Sel: &ast.Ident{Name: "Textvew"}},
+		Elts: []ast.Expr{
+			&ast.KeyValueExpr{
+				Key:   &ast.Ident{Name: "Text"},
+				Value: &ast.BasicLit{Kind: token.STRING, Value: `"typo"`},
+			},
+		},
+	}
+
+	p := newTestParser()
+	if w := p.widget(comp); w != nil {
+		t.Fatalf("expected no widget, got %#v", w)
+	}
+	err := p.err()
+	if err == nil {
+		t.Fatal("expected an error for an unknown widget type")
+	}
+	if !strings.Contains(err.Error(), "unknown widget") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestParseWidgetRejectsReservedWordID(t *testing.T) {
+	comp := &ast.CompositeLit{
+		Type: &ast.SelectorExpr{Sel: &ast.Ident{Name: "TextView"}},
+		Elts: []ast.Expr{
+			&ast.KeyValueExpr{
+				Key:   &ast.Ident{Name: "ID"},
+				Value: &ast.BasicLit{Kind: token.STRING, Value: `"class"`},
+			},
+		},
+	}
+
+	p := newTestParser()
+	p.widget(comp)
+	if err := p.err(); err == nil {
+		t.Fatal("expected an error for a Java reserved word used as an ID")
 	}
 }

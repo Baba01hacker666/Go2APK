@@ -1,16 +1,19 @@
+// Package frontend turns Go source code into the intermediate representation
+// that the Android code generators consume.
 package frontend
 
 import (
 	"fmt"
-	"go/ast"
+	"os"
 
 	"github.com/Baba01hacker666/Go2APK/ir"
-	"github.com/Baba01hacker666/Go2APK/parser"
+	"golang.org/x/tools/go/packages"
 )
 
 // Frontend orchestrates parsing and semantic analysis to produce the IR.
 type Frontend struct{}
 
+// New returns a ready-to-use Frontend.
 func New() *Frontend {
 	return &Frontend{}
 }
@@ -20,67 +23,72 @@ func (f *Frontend) BuildIR(dir string) (*ir.Program, error) {
 	return f.BuildIRDirs([]string{dir})
 }
 
-// BuildIRDirs parses one or more app source roots. The first directory is treated
-// as the main application package; extra directories make split UI/logic projects
-// explicit for checks and Gradle inputs while normal Go imports keep working.
+// BuildIRDirs parses one or more app source roots. The first directory is
+// treated as the main application package; extra directories make split
+// UI/logic projects explicit for checks and Gradle inputs while normal Go
+// imports keep working.
 func (f *Frontend) BuildIRDirs(dirs []string) (*ir.Program, error) {
-	pkgs, err := parser.Parse(parser.ParseConfig{Dirs: dirs})
+	pkgs, err := LoadPackages(dirs)
 	if err != nil {
-		return nil, fmt.Errorf("parsing failed: %w", err)
+		return nil, err
 	}
-
-	fmt.Printf("Parsed %d packages in %d source root(s)\n", len(pkgs), len(dirs))
-
-	prog := &ir.Program{
-		Packages: make(map[string]*ir.Package),
+	ui, err := ExtractUI(pkgs)
+	if err != nil {
+		return nil, err
 	}
+	return &ir.Program{
+		UI:            ui.Root,
+		Pages:         ui.Pages,
+		Events:        ui.Events,
+		Permissions:   ui.Permissions,
+		Receivers:     ui.Receivers,
+		HasVPN:        ui.HasVPN,
+		AndroidImport: ui.AndroidImport,
+	}, nil
+}
 
-	for _, pkg := range pkgs {
-		irPkg := &ir.Package{
-			Name:  pkg.Name,
-			Path:  pkg.PkgPath,
-			Types: make(map[string]*ir.Type),
-			Funcs: make(map[string]*ir.Function),
-		}
+// LoadPackages loads and type-checks the package in each source root.
+//
+// Sources are analysed with the full syntax and type information the extractor
+// needs; packages that fail to load are reported with the compiler's own
+// message rather than being skipped, so a broken app fails loudly instead of
+// generating an empty APK.
+func LoadPackages(dirs []string) ([]*packages.Package, error) {
+	const mode = packages.NeedName |
+		packages.NeedFiles |
+		packages.NeedCompiledGoFiles |
+		packages.NeedImports |
+		packages.NeedSyntax |
+		packages.NeedTypes |
+		// NeedTypesInfo gives the extractor the signature of a handler that is
+		// named rather than written inline, which is how it decides which
+		// registration call to generate.
+		packages.NeedTypesInfo
 
-		fmt.Printf("Package %s has %d syntax trees\n", pkg.Name, len(pkg.Syntax))
-
-		for _, file := range pkg.Syntax {
-			for _, decl := range file.Decls {
-				if fnDecl, ok := decl.(*ast.FuncDecl); ok {
-					irPkg.Funcs[fnDecl.Name.Name] = &ir.Function{Name: fnDecl.Name.Name}
-				} else if genDecl, ok := decl.(*ast.GenDecl); ok {
-					for _, spec := range genDecl.Specs {
-						if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-							irPkg.Types[typeSpec.Name.Name] = &ir.Type{Name: typeSpec.Name.Name}
-						}
-					}
-				}
-			}
-		}
-		prog.Packages[pkg.PkgPath] = irPkg
-	}
-
-	androidImport := "github.com/Baba01hacker666/Go2APK/android"
-	for _, pkg := range pkgs {
-		for _, file := range pkg.Syntax {
-			for _, imp := range file.Imports {
-				importPath := imp.Path.Value[1 : len(imp.Path.Value)-1]
-				if len(importPath) > 8 && importPath[len(importPath)-8:] == "/android" && (len(importPath) > 16 && importPath[len(importPath)-15:] == "Go2APK/android") {
-					androidImport = importPath
-				}
-			}
+	cleaned := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		if dir != "" {
+			cleaned = append(cleaned, dir)
 		}
 	}
+	if len(cleaned) == 0 {
+		cleaned = []string{"."}
+	}
 
-	uiTree, pages, events, permissions, receivers, hasVPN := ExtractUI(pkgs)
-	prog.UI = uiTree
-	prog.Pages = pages
-	prog.Events = events
-	prog.Permissions = permissions
-	prog.Receivers = receivers
-	prog.HasVPN = hasVPN
-	prog.AndroidImport = androidImport
+	var pkgs []*packages.Package
+	for _, dir := range cleaned {
+		if _, err := os.Stat(dir); err != nil {
+			return nil, fmt.Errorf("source directory %s: %w", dir, err)
+		}
+		loaded, err := packages.Load(&packages.Config{Mode: mode, Dir: dir}, ".")
+		if err != nil {
+			return nil, fmt.Errorf("failed to load packages from %s: %w", dir, err)
+		}
+		pkgs = append(pkgs, loaded...)
+	}
 
-	return prog, nil
+	if packages.PrintErrors(pkgs) > 0 {
+		return nil, fmt.Errorf("one or more source packages failed to compile")
+	}
+	return pkgs, nil
 }

@@ -30,6 +30,8 @@ final class NativeBridge {
     // ── JNI entry points (called from Go) ────────────────────────────────────
 
     private static native void sendEventToGo(String eventName);
+    private static native void sendCheckedEventToGo(String eventName, boolean checked);
+    private static native void sendTextEventToGo(String eventName, String value);
     private static native void onPermissionResult(String permission, boolean granted);
     static native void onVpnEstablished(int fd);
 
@@ -37,6 +39,16 @@ final class NativeBridge {
 
     static void sendEvent(String eventName) {
         sendEventToGo(eventName);
+    }
+
+    /** Java to Go dispatch for handlers that take the new state of a Switch. */
+    static void sendCheckedEvent(String eventName, boolean checked) {
+        sendCheckedEventToGo(eventName, checked);
+    }
+
+    /** Java to Go dispatch for handlers that take the contents of a TextField. */
+    static void sendTextEvent(String eventName, String value) {
+        sendTextEventToGo(eventName, value);
     }
 
     // ── Activity & Context helpers ────────────────────────────────────────────
@@ -199,8 +211,8 @@ func RenderBroadcastReceiver(cfg config.Config, receivers []ir.BroadcastReceiver
 	sb.WriteString("        String action = intent.getAction();\n")
 	sb.WriteString("        if (action == null) return;\n")
 	for _, recv := range receivers {
-		sb.WriteString(fmt.Sprintf("        if (action.equals(%q)) { NativeBridge.sendEvent(%q); return; }\n",
-			recv.Action, recv.Name))
+		sb.WriteString(fmt.Sprintf("        if (action.equals(%s)) { NativeBridge.sendEvent(%s); return; }\n",
+			javaStringLiteral(recv.Action), javaStringLiteral(recv.Name)))
 	}
 	sb.WriteString("    }\n")
 	sb.WriteString("}\n")
@@ -321,13 +333,13 @@ public class %s extends Activity implements Go2ApkActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setTitle("%s");
+        setTitle(%s);
         setContentView(createAppView());
         NativeBridge.setActivity(this);
     }
 
     private View createAppView() {
-`, cfg.Name))
+`, javaStringLiteral(cfg.Name)))
 
 	if root != nil {
 		counter := 0
@@ -394,148 +406,58 @@ public class %s extends Activity implements Go2ApkActivity {
 }
 
 func writeUpdateWidgetCases(b *strings.Builder, w ir.Widget) {
-	switch v := w.(type) {
-	case ir.ColumnWidget:
-		for _, child := range v.Children {
-			writeUpdateWidgetCases(b, child)
+	walk(w, func(node ir.Widget) {
+		d := describe(node)
+		if d.ID == "" || d.FieldType == "" || d.SetTextExpr == "" {
+			return
 		}
-	case ir.RowWidget:
-		for _, child := range v.Children {
-			writeUpdateWidgetCases(b, child)
-		}
-	case ir.TextViewWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) this.%s.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }\n", v.ID, v.ID, v.ID))
-		}
-	case ir.ButtonWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) this.%s.setText(android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_COMPACT)); return; }\n", v.ID, v.ID, v.ID))
-		}
-	case ir.TextFieldWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) this.%s.setText(text); return; }\n", v.ID, v.ID, v.ID))
-		}
-	}
+		b.WriteString(fmt.Sprintf("        if (id.equals(%s)) { if (this.%s != null) this.%s.%s; return; }\n",
+			javaStringLiteral(d.ID), d.ID, d.ID, d.SetTextExpr))
+	})
 }
 
 func writeAnimateWidgetCases(b *strings.Builder, w ir.Widget) {
-	switch v := w.(type) {
-	case ir.ColumnWidget:
-		for _, child := range v.Children {
-			writeAnimateWidgetCases(b, child)
+	walk(w, func(node ir.Widget) {
+		d := describe(node)
+		if d.ID == "" || d.FieldType == "" {
+			return
 		}
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) ObjectAnimator.ofFloat(this.%s, property, to).setDuration(durationMs).start(); return; }\n", v.ID, v.ID, v.ID))
-		}
-	case ir.RowWidget:
-		for _, child := range v.Children {
-			writeAnimateWidgetCases(b, child)
-		}
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) ObjectAnimator.ofFloat(this.%s, property, to).setDuration(durationMs).start(); return; }\n", v.ID, v.ID, v.ID))
-		}
-	case ir.TextViewWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) ObjectAnimator.ofFloat(this.%s, property, to).setDuration(durationMs).start(); return; }\n", v.ID, v.ID, v.ID))
-		}
-	case ir.ButtonWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) ObjectAnimator.ofFloat(this.%s, property, to).setDuration(durationMs).start(); return; }\n", v.ID, v.ID, v.ID))
-		}
-	case ir.TextFieldWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) ObjectAnimator.ofFloat(this.%s, property, to).setDuration(durationMs).start(); return; }\n", v.ID, v.ID, v.ID))
-		}
-	case ir.ImageWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) ObjectAnimator.ofFloat(this.%s, property, to).setDuration(durationMs).start(); return; }\n", v.ID, v.ID, v.ID))
-		}
-	case ir.VideoWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\")) { if (this.%s != null) ObjectAnimator.ofFloat(this.%s, property, to).setDuration(durationMs).start(); return; }\n", v.ID, v.ID, v.ID))
-		}
-	}
+		b.WriteString(fmt.Sprintf("        if (id.equals(%s)) { if (this.%s != null) ObjectAnimator.ofFloat(this.%s, property, to).setDuration(durationMs).start(); return; }\n",
+			javaStringLiteral(d.ID), d.ID, d.ID))
+	})
 }
 
 func writeGetWidgetCases(b *strings.Builder, w ir.Widget) {
-	switch v := w.(type) {
-	case ir.ColumnWidget:
-		for _, child := range v.Children {
-			writeGetWidgetCases(b, child)
+	walk(w, func(node ir.Widget) {
+		d := describe(node)
+		if d.ID == "" || d.FieldType == "" || !d.Readable {
+			return
 		}
-	case ir.RowWidget:
-		for _, child := range v.Children {
-			writeGetWidgetCases(b, child)
-		}
-	case ir.TextViewWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\") && this.%s != null) return this.%s.getText().toString();\n", v.ID, v.ID, v.ID))
-		}
-	case ir.TextFieldWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("        if (id.equals(\"%s\") && this.%s != null) return this.%s.getText().toString();\n", v.ID, v.ID, v.ID))
-		}
-	}
+		b.WriteString(fmt.Sprintf("        if (id.equals(%s) && this.%s != null) return this.%s.getText().toString();\n",
+			javaStringLiteral(d.ID), d.ID, d.ID))
+	})
 }
 
 func declareFields(b *strings.Builder, w ir.Widget) {
-	switch v := w.(type) {
-	case ir.ColumnWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("    private LinearLayout %s;\n", v.ID))
+	walk(w, func(node ir.Widget) {
+		d := describe(node)
+		if d.ID == "" || d.FieldType == "" {
+			return
 		}
-		for _, child := range v.Children {
-			declareFields(b, child)
-		}
-	case ir.RowWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("    private LinearLayout %s;\n", v.ID))
-		}
-		for _, child := range v.Children {
-			declareFields(b, child)
-		}
-	case ir.TextViewWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("    private TextView %s;\n", v.ID))
-		}
-	case ir.ButtonWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("    private Button %s;\n", v.ID))
-		}
-	case ir.TextFieldWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("    private EditText %s;\n", v.ID))
-		}
-	case ir.ImageWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("    private ImageView %s;\n", v.ID))
-		}
-	case ir.AudioWidget:
-		// AudioWidget has no UI, but we could declare it as MediaPlayer if needed, though we don't have to unless we need to animate it, which doesn't make sense. But for consistency:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("    private MediaPlayer %s;\n", v.ID))
-		}
-	case ir.VideoWidget:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("    private VideoView %s;\n", v.ID))
-		}
-	case ir.XMLView:
-		if v.ID != "" {
-			b.WriteString(fmt.Sprintf("    private View %s;\n", v.ID))
-		}
-	}
+		b.WriteString(fmt.Sprintf("    private %s %s;\n", d.FieldType, d.ID))
+	})
 }
 
-func applyStyle(b *strings.Builder, viewVar string, style ir.Style, defaultWidth, defaultHeight int, defaultWeight float32) {
-	width := defaultWidth
+func applyStyle(b *strings.Builder, viewVar string, style ir.Style, defaults LayoutDefaults) {
+	width := defaults.Width
 	if style.Width != 0 {
 		width = style.Width
 	}
-	height := defaultHeight
+	height := defaults.Height
 	if style.Height != 0 {
 		height = style.Height
 	}
-	weight := defaultWeight
+	weight := defaults.Weight
 	if style.Weight != 0 {
 		weight = style.Weight
 	}
@@ -581,7 +503,7 @@ func applyStyle(b *strings.Builder, viewVar string, style ir.Style, defaultWidth
 		b.WriteString(fmt.Sprintf("        %s.setPadding(%d, %d, %d, %d);\n", viewVar, style.Padding, style.Padding, style.Padding, style.Padding))
 	}
 	if style.BackgroundColor != "" {
-		b.WriteString(fmt.Sprintf("        %s.setBackgroundColor(Color.parseColor(\"%s\"));\n", viewVar, style.BackgroundColor))
+		b.WriteString(fmt.Sprintf("        %s.setBackgroundColor(Color.parseColor(%s));\n", viewVar, javaStringLiteral(style.BackgroundColor)))
 	}
 
 	if style.Animation.Type != "" {
@@ -615,7 +537,7 @@ func applyTextStyle(b *strings.Builder, viewVar string, style ir.Style, defaultS
 	}
 	b.WriteString(fmt.Sprintf("        %s.setTextSize(%d);\n", viewVar, size))
 	if style.TextColor != "" {
-		b.WriteString(fmt.Sprintf("        %s.setTextColor(Color.parseColor(\"%s\"));\n", viewVar, style.TextColor))
+		b.WriteString(fmt.Sprintf("        %s.setTextColor(Color.parseColor(%s));\n", viewVar, javaStringLiteral(style.TextColor)))
 	}
 }
 
@@ -663,15 +585,15 @@ func applyCSS(b *strings.Builder, viewVar string, css string) {
 		case "box-shadow", "elevation":
 			// We only parse elevation for Android natively
 			val = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(val, "px"), "dp"), "sp")
-			b.WriteString(fmt.Sprintf("        %s.setElevation(Float.parseFloat(\"%s\"));\n", viewVar, val))
+			b.WriteString(fmt.Sprintf("        %s.setElevation(Float.parseFloat(%s));\n", viewVar, javaStringLiteral(val)))
 		case "color":
-			b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setTextColor(Color.parseColor(\"%s\"));\n", viewVar, viewVar, val))
+			b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setTextColor(Color.parseColor(%s));\n", viewVar, viewVar, javaStringLiteral(val)))
 		case "font-size":
 			size := strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(val, "px"), "dp"), "sp")
-			b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setTextSize(Float.parseFloat(\"%s\"));\n", viewVar, viewVar, size))
+			b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setTextSize(Float.parseFloat(%s));\n", viewVar, viewVar, javaStringLiteral(size)))
 		case "padding":
 			pad := strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(val, "px"), "dp"), "sp")
-			b.WriteString(fmt.Sprintf("        %s.setPadding((int)Float.parseFloat(\"%s\"), (int)Float.parseFloat(\"%s\"), (int)Float.parseFloat(\"%s\"), (int)Float.parseFloat(\"%s\"));\n", viewVar, pad, pad, pad, pad))
+			b.WriteString(fmt.Sprintf("        %s.setPadding((int)Float.parseFloat(%s), (int)Float.parseFloat(%s), (int)Float.parseFloat(%s), (int)Float.parseFloat(%s));\n", viewVar, javaStringLiteral(pad), javaStringLiteral(pad), javaStringLiteral(pad), javaStringLiteral(pad)))
 		case "text-align":
 			var gravity string
 			switch val {
@@ -690,7 +612,7 @@ func applyCSS(b *strings.Builder, viewVar string, css string) {
 				b.WriteString(fmt.Sprintf("        if (%s instanceof TextView) ((TextView)%s).setTypeface(android.graphics.Typeface.DEFAULT_BOLD);\n", viewVar, viewVar))
 			}
 		case "opacity":
-			b.WriteString(fmt.Sprintf("        %s.setAlpha(Float.parseFloat(\"%s\"));\n", viewVar, val))
+			b.WriteString(fmt.Sprintf("        %s.setAlpha(Float.parseFloat(%s));\n", viewVar, javaStringLiteral(val)))
 		}
 	}
 
@@ -699,13 +621,13 @@ func applyCSS(b *strings.Builder, viewVar string, css string) {
 		b.WriteString("        {\n")
 		b.WriteString("            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();\n")
 		if hasBackground {
-			b.WriteString(fmt.Sprintf("            gd.setColor(Color.parseColor(\"%s\"));\n", bgColor))
+			b.WriteString(fmt.Sprintf("            gd.setColor(Color.parseColor(%s));\n", javaStringLiteral(bgColor)))
 		}
 		if hasRadius {
-			b.WriteString(fmt.Sprintf("            gd.setCornerRadius(Float.parseFloat(\"%s\"));\n", radius))
+			b.WriteString(fmt.Sprintf("            gd.setCornerRadius(Float.parseFloat(%s));\n", javaStringLiteral(radius)))
 		}
 		if hasBorder {
-			b.WriteString(fmt.Sprintf("            gd.setStroke((int)Float.parseFloat(\"%s\"), Color.parseColor(\"%s\"));\n", borderWidth, borderColor))
+			b.WriteString(fmt.Sprintf("            gd.setStroke((int)Float.parseFloat(%s), Color.parseColor(%s));\n", javaStringLiteral(borderWidth), javaStringLiteral(borderColor)))
 		}
 		b.WriteString(fmt.Sprintf("            %s.setBackground(gd);\n", viewVar))
 		b.WriteString("        }\n")
@@ -721,7 +643,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		b.WriteString(fmt.Sprintf("        LinearLayout %s = new LinearLayout(this);\n", viewVar))
 		b.WriteString(fmt.Sprintf("        %s.setOrientation(LinearLayout.VERTICAL);\n", viewVar))
 		b.WriteString(fmt.Sprintf("        %s.setGravity(Gravity.CENTER);\n", viewVar))
-		applyStyle(b, viewVar, v.Style, -1, -1, 0)
+		applyStyle(b, viewVar, v.Style, LayoutDefaultsFor(w))
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
@@ -737,7 +659,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		b.WriteString(fmt.Sprintf("        LinearLayout %s = new LinearLayout(this);\n", viewVar))
 		b.WriteString(fmt.Sprintf("        %s.setOrientation(LinearLayout.HORIZONTAL);\n", viewVar))
 		b.WriteString(fmt.Sprintf("        %s.setGravity(Gravity.CENTER);\n", viewVar))
-		applyStyle(b, viewVar, v.Style, -1, -2, 0)
+		applyStyle(b, viewVar, v.Style, LayoutDefaultsFor(w))
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
@@ -751,9 +673,9 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		return viewVar
 	case ir.TextViewWidget:
 		b.WriteString(fmt.Sprintf("        TextView %s = new TextView(this);\n", viewVar))
-		b.WriteString(fmt.Sprintf("        %s.setText(android.text.Html.fromHtml(\"%s\", android.text.Html.FROM_HTML_MODE_COMPACT));\n", viewVar, v.Text))
+		b.WriteString(fmt.Sprintf("        %s.setText(android.text.Html.fromHtml(%s, android.text.Html.FROM_HTML_MODE_COMPACT));\n", viewVar, javaStringLiteral(v.Text)))
 		b.WriteString(fmt.Sprintf("        %s.setGravity(Gravity.END);\n", viewVar))
-		applyStyle(b, viewVar, v.Style, -1, -2, 0)
+		applyStyle(b, viewVar, v.Style, LayoutDefaultsFor(w))
 		applyTextStyle(b, viewVar, v.Style, 32)
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
@@ -765,15 +687,14 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		return viewVar
 	case ir.ButtonWidget:
 		b.WriteString(fmt.Sprintf("        Button %s = new Button(this);\n", viewVar))
-		b.WriteString(fmt.Sprintf("        %s.setText(android.text.Html.fromHtml(\"%s\", android.text.Html.FROM_HTML_MODE_COMPACT));\n", viewVar, v.Text))
-		applyStyle(b, viewVar, v.Style, 0, -2, 1.0)
+		b.WriteString(fmt.Sprintf("        %s.setText(android.text.Html.fromHtml(%s, android.text.Html.FROM_HTML_MODE_COMPACT));\n", viewVar, javaStringLiteral(v.Text)))
+		applyStyle(b, viewVar, v.Style, LayoutDefaultsFor(w))
 		applyTextStyle(b, viewVar, v.Style, 24)
 		applyCSS(b, viewVar, v.CSS)
-		if v.OnClickFunc != "" {
-			// Trigger JNI event
+		if v.OnClickFunc != "" && v.ID != "" {
 			b.WriteString(fmt.Sprintf("        %s.setOnClickListener(v -> {\n", viewVar))
-			b.WriteString(fmt.Sprintf("            NativeBridge.sendEvent(\"%s_onclick\");\n", v.ID))
-			b.WriteString(fmt.Sprintf("        });\n"))
+			b.WriteString(fmt.Sprintf("            NativeBridge.sendEvent(%s);\n", javaStringLiteral(v.ID+"_onclick")))
+			b.WriteString("        });\n")
 		}
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
@@ -784,8 +705,8 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		return viewVar
 	case ir.TextFieldWidget:
 		b.WriteString(fmt.Sprintf("        EditText %s = new EditText(this);\n", viewVar))
-		b.WriteString(fmt.Sprintf("        %s.setHint(\"%s\");\n", viewVar, v.Placeholder))
-		applyStyle(b, viewVar, v.Style, -1, -2, 0)
+		b.WriteString(fmt.Sprintf("        %s.setHint(%s);\n", viewVar, javaStringLiteral(v.Placeholder)))
+		applyStyle(b, viewVar, v.Style, LayoutDefaultsFor(w))
 		applyTextStyle(b, viewVar, v.Style, 24)
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" && v.OnChangedFunc != "" {
@@ -793,7 +714,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 			b.WriteString(fmt.Sprintf("            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}\n"))
 			b.WriteString(fmt.Sprintf("            public void onTextChanged(CharSequence s, int start, int before, int count) {}\n"))
 			b.WriteString(fmt.Sprintf("            public void afterTextChanged(android.text.Editable s) {\n"))
-			b.WriteString(fmt.Sprintf("                NativeBridge.sendEvent(\"%s_onchanged\");\n", v.ID))
+			b.WriteString(fmt.Sprintf("                NativeBridge.sendTextEvent(%s, s.toString());\n", javaStringLiteral(v.ID+"_onchanged")))
 			b.WriteString(fmt.Sprintf("            }\n"))
 			b.WriteString(fmt.Sprintf("        });\n"))
 		}
@@ -806,8 +727,8 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		return viewVar
 	case ir.ImageWidget:
 		b.WriteString(fmt.Sprintf("        ImageView %s = new ImageView(this);\n", viewVar))
-		b.WriteString(fmt.Sprintf("        loadImage(%s, \"%s\");\n", viewVar, v.Src))
-		applyStyle(b, viewVar, v.Style, -1, -2, 0)
+		b.WriteString(fmt.Sprintf("        loadImage(%s, %s);\n", viewVar, javaStringLiteral(v.Src)))
+		applyStyle(b, viewVar, v.Style, LayoutDefaultsFor(w))
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
@@ -820,7 +741,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		b.WriteString(fmt.Sprintf("        // AudioWidget has no UI, it plays sound\n"))
 		b.WriteString(fmt.Sprintf("        MediaPlayer %s = new MediaPlayer();\n", viewVar))
 		b.WriteString("        try {\n")
-		b.WriteString(fmt.Sprintf("            %s.setDataSource(\"%s\");\n", viewVar, v.Src))
+		b.WriteString(fmt.Sprintf("            %s.setDataSource(%s);\n", viewVar, javaStringLiteral(v.Src)))
 		b.WriteString(fmt.Sprintf("            %s.prepareAsync();\n", viewVar))
 		if v.AutoPlay {
 			b.WriteString(fmt.Sprintf("            %s.setOnPreparedListener(mp -> mp.start());\n", viewVar))
@@ -833,9 +754,9 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		return viewVar
 	case ir.VideoWidget:
 		b.WriteString(fmt.Sprintf("        VideoView %s = new VideoView(this);\n", viewVar))
-		b.WriteString(fmt.Sprintf("        %s.setVideoURI(Uri.parse(\"%s\"));\n", viewVar, v.Src))
+		b.WriteString(fmt.Sprintf("        %s.setVideoURI(Uri.parse(%s));\n", viewVar, javaStringLiteral(v.Src)))
 		b.WriteString(fmt.Sprintf("        %s.start();\n", viewVar))
-		applyStyle(b, viewVar, v.Style, -1, -2, 0)
+		applyStyle(b, viewVar, v.Style, LayoutDefaultsFor(w))
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
@@ -848,13 +769,11 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		b.WriteString(fmt.Sprintf("        android.webkit.WebView %s = new android.webkit.WebView(this);\n", viewVar))
 		b.WriteString(fmt.Sprintf("        %s.getSettings().setJavaScriptEnabled(true);\n", viewVar))
 		if v.Src != "" {
-			b.WriteString(fmt.Sprintf("        %s.loadUrl(\"%s\");\n", viewVar, v.Src))
+			b.WriteString(fmt.Sprintf("        %s.loadUrl(%s);\n", viewVar, javaStringLiteral(v.Src)))
 		} else if v.HTML != "" {
-			escapedHTML := strings.ReplaceAll(v.HTML, "\"", "\\\"")
-			escapedHTML = strings.ReplaceAll(escapedHTML, "\n", "\\n")
-			b.WriteString(fmt.Sprintf("        %s.loadDataWithBaseURL(null, \"%s\", \"text/html\", \"UTF-8\", null);\n", viewVar, escapedHTML))
+			b.WriteString(fmt.Sprintf("        %s.loadDataWithBaseURL(null, %s, \"text/html\", \"UTF-8\", null);\n", viewVar, javaStringLiteral(v.HTML)))
 		}
-		applyStyle(b, viewVar, v.Style, -1, -1, 0)
+		applyStyle(b, viewVar, v.Style, LayoutDefaultsFor(w))
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
@@ -864,9 +783,9 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		}
 		return viewVar
 	case ir.XMLView:
-		b.WriteString(fmt.Sprintf("        int layoutResId_%s = getResources().getIdentifier(\"%s\", \"layout\", getPackageName());\n", viewVar, v.Layout))
+		b.WriteString(fmt.Sprintf("        int layoutResId_%s = getResources().getIdentifier(%s, \"layout\", getPackageName());\n", viewVar, javaStringLiteral(v.Layout)))
 		b.WriteString(fmt.Sprintf("        View %s = getLayoutInflater().inflate(layoutResId_%s, null);\n", viewVar, viewVar))
-		applyStyle(b, viewVar, v.Style, -1, -2, 0)
+		applyStyle(b, viewVar, v.Style, LayoutDefaultsFor(w))
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
@@ -878,7 +797,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 	case ir.ScrollViewWidget:
 		b.WriteString(fmt.Sprintf("        ScrollView %s = new ScrollView(this);\n", viewVar))
 		b.WriteString(fmt.Sprintf("        %s.setFillViewport(true);\n", viewVar))
-		applyStyle(b, viewVar, v.Style, -1, -1, 0)
+		applyStyle(b, viewVar, v.Style, LayoutDefaultsFor(w))
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
@@ -894,7 +813,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		b.WriteString(fmt.Sprintf("        androidx.cardview.widget.CardView %s = new androidx.cardview.widget.CardView(this);\n", viewVar))
 		b.WriteString(fmt.Sprintf("        %s.setRadius(8f);\n", viewVar))
 		b.WriteString(fmt.Sprintf("        %s.setCardElevation(4f);\n", viewVar))
-		applyStyle(b, viewVar, v.Style, -1, -2, 0)
+		applyStyle(b, viewVar, v.Style, LayoutDefaultsFor(w))
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
@@ -908,7 +827,7 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		return viewVar
 	case ir.ProgressBarWidget:
 		b.WriteString(fmt.Sprintf("        ProgressBar %s = new ProgressBar(this);\n", viewVar))
-		applyStyle(b, viewVar, v.Style, -2, -2, 0)
+		applyStyle(b, viewVar, v.Style, LayoutDefaultsFor(w))
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" {
 			b.WriteString(fmt.Sprintf("        this.%s = %s;\n", v.ID, viewVar))
@@ -922,11 +841,11 @@ func buildView(b *strings.Builder, w ir.Widget, parentVar string, counter *int) 
 		if v.Checked {
 			b.WriteString(fmt.Sprintf("        %s.setChecked(true);\n", viewVar))
 		}
-		applyStyle(b, viewVar, v.Style, -2, -2, 0)
+		applyStyle(b, viewVar, v.Style, LayoutDefaultsFor(w))
 		applyCSS(b, viewVar, v.CSS)
 		if v.ID != "" && v.OnChangedFunc != "" {
 			b.WriteString(fmt.Sprintf("        %s.setOnCheckedChangeListener((buttonView, isChecked) -> {\n", viewVar))
-			b.WriteString(fmt.Sprintf("            NativeBridge.sendEvent(\"%s_onchanged\");\n", v.ID))
+			b.WriteString(fmt.Sprintf("            NativeBridge.sendCheckedEvent(%s, isChecked);\n", javaStringLiteral(v.ID+"_onchanged")))
 			b.WriteString(fmt.Sprintf("        });\n"))
 		}
 		if v.ID != "" {
